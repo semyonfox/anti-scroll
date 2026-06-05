@@ -1,0 +1,299 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f8f8;
+  --panel: #ffffff;
+  --text: #15191d;
+  --muted: #697178;
+  --line: #d9dedc;
+  --soft: #eef2f1;
+  --accent: #116c5f;
+  --danger: #ad2f2a;
+  --shadow: 0 8px 24px rgba(20, 26, 31, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 650;
+  padding: 0 10px;
+}
+
+button:hover {
+  background: var(--soft);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+button.plain {
+  min-height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+button.plain:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+
+input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+input[type="number"],
+input[type="search"] {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--text);
+  outline: none;
+}
+
+input[type="number"]:focus,
+input[type="search"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(17, 108, 95, 0.12);
+}
+
+.shell {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.topbar,
+.current-row,
+.footer,
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 18px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.muted,
+.timer-status,
+.footer {
+  color: var(--muted);
+}
+
+.muted {
+  margin-top: 3px;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 26px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pill.blocked {
+  background: #fdecea;
+  color: var(--danger);
+}
+
+.pill.selected {
+  background: #e5f3ef;
+  color: var(--accent);
+}
+
+.mode-row,
+.timer-row,
+.current-row,
+.search-box,
+.site-list,
+.options,
+.footer {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.mode-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 6px;
+}
+
+.timer-row {
+  display: grid;
+  grid-template-columns: auto 62px auto auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+}
+
+.timer-row input {
+  width: 62px;
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+.timer-status {
+  min-height: 18px;
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.current-row {
+  min-height: 44px;
+  padding: 8px;
+}
+
+.current-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-box {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  font-weight: 700;
+}
+
+.search-box input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  font-weight: 500;
+}
+
+.list-head {
+  padding: 0 2px;
+}
+
+.site-list {
+  max-height: 256px;
+  overflow-y: auto;
+}
+
+.site-row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.site-row:last-child {
+  border-bottom: 0;
+}
+
+.site-row strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-row small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-row .remove {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.empty-row {
+  display: grid;
+  gap: 8px;
+  padding: 14px 10px;
+  color: var(--muted);
+}
+
+.empty-row button {
+  justify-self: start;
+}
+
+.options {
+  display: grid;
+  gap: 0;
+  padding: 2px 10px;
+}
+
+.options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.footer {
+  min-height: 38px;
+  padding: 6px 10px;
+  box-shadow: none;
+}

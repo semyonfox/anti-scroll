@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Anti Scroll",
+  "version": "0.1.0",
+  "description": "Stops scroll loops on selected sites while leaving the rest of the web alone.",
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Anti Scroll"
+  },
+  "background": {
+    "scripts": ["src/constants.js", "src/background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/page-lock.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/constants.js", "src/content.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true
+    }
+  ],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": ["alarms", "storage", "tabs"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "anti-scroll@example.invalid",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {}
+  }
+}

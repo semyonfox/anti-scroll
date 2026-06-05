@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Anti Scroll</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Anti Scroll</h1>
+          <p id="currentHost" class="muted">Checking tab</p>
+        </div>
+        <span id="statusPill" class="pill">Off</span>
+      </header>
+
+      <section class="mode-row" aria-label="Mode">
+        <button id="modeDisabled" type="button" data-mode="disabled">Off</button>
+        <button id="modeSelected" type="button" data-mode="selected">Selected</button>
+        <button id="modeAll" type="button" data-mode="all">All Sites</button>
+      </section>
+
+      <section class="timer-row" aria-label="Duration">
+        <label for="durationMinutes">Run for</label>
+        <input
+          id="durationMinutes"
+          type="number"
+          min="1"
+          max="1440"
+          step="1"
+          value="30"
+          aria-label="Duration in minutes"
+        >
+        <span>min</span>
+        <button id="startTimer" type="button">Start</button>
+        <button id="clearTimer" class="plain" type="button">Clear</button>
+      </section>
+
+      <p id="timerStatus" class="timer-status">No timer set</p>
+
+      <section class="current-row" aria-label="Current site">
+        <span id="currentStatus">This page is allowed</span>
+        <button id="toggleCurrent" type="button">Add Site</button>
+      </section>
+
+      <label class="search-box" for="siteSearch">
+        <span>Sites</span>
+        <input
+          id="siteSearch"
+          type="search"
+          autocomplete="off"
+          placeholder="Search or type a domain"
+        >
+      </label>
+
+      <div class="list-head">
+        <button id="selectAll" class="plain" type="button">Select All</button>
+        <button id="clearSelected" class="plain" type="button">Clear</button>
+      </div>
+
+      <div id="siteList" class="site-list" role="list"></div>
+
+      <section class="options" aria-label="Options">
+        <label>
+          <input id="allowEditableFields" type="checkbox">
+          <span>Allow typing fields</span>
+        </label>
+        <label>
+          <input id="allowMessagingPages" type="checkbox">
+          <span>Allow messages</span>
+        </label>
+      </section>
+
+      <footer class="footer">
+        <span id="attemptTotal">0 blocked</span>
+        <button id="resetStats" class="plain" type="button">Reset</button>
+      </footer>
+    </main>
+
+    <script src="../src/constants.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
