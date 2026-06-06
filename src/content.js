@@ -37,6 +37,7 @@
   let mutationObserver = null;
   let surfaceObserver = null;
   let surfaceTimer = null;
+  let surfaceIntervalTimer = null;
   let pointerStart = null;
 
   const scrollContainers = new Set();
@@ -104,6 +105,24 @@
       "main div[aria-label*='Timeline'] [role='article']"
     ]
   };
+
+  function buildFeedSelectorCss() {
+    const rules = [];
+
+    for (const [presetId, selectors] of Object.entries(FEED_SELECTORS)) {
+      for (const selector of selectors) {
+        rules.push(`
+          :root[data-anti-scroll-feed-surface="true"][data-anti-scroll-feed-preset="${presetId}"] ${selector} {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+          }
+        `);
+      }
+    }
+
+    return rules.join("\n");
+  }
 
   function storageGet(area, defaults) {
     return new Promise((resolve) => {
@@ -209,6 +228,8 @@
         margin: 0 !important;
         color: #697178 !important;
       }
+
+      ${buildFeedSelectorCss()}
     `;
 
     (document.head || document.documentElement).appendChild(style);
@@ -495,6 +516,8 @@
       childList: true,
       subtree: true
     });
+
+    surfaceIntervalTimer = setInterval(applyFeedSurfaceShield, 1000);
   }
 
   function stopSurfaceWatch() {
@@ -502,6 +525,8 @@
     surfaceObserver = null;
     clearTimeout(surfaceTimer);
     surfaceTimer = null;
+    clearInterval(surfaceIntervalTimer);
+    surfaceIntervalTimer = null;
   }
 
   function clearFeedTargets() {
