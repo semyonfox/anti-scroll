@@ -62,6 +62,7 @@
     activeUntil: null,
     lockPage: true,
     showNotice: false,
+    strictFeeds: true,
     allowEditableFields: true,
     allowMessagingPages: true,
     presets: DEFAULT_PRESET_STATE,
@@ -177,6 +178,10 @@
           ? incoming.lockPage
           : DEFAULT_SETTINGS.lockPage,
       showNotice: false,
+      strictFeeds:
+        typeof incoming.strictFeeds === "boolean"
+          ? incoming.strictFeeds
+          : DEFAULT_SETTINGS.strictFeeds,
       allowEditableFields:
         typeof incoming.allowEditableFields === "boolean"
           ? incoming.allowEditableFields
@@ -240,6 +245,158 @@
 
   function getPresetById(id) {
     return PRESETS.find((preset) => preset.id === id) || null;
+  }
+
+  function normalizedPathname(url) {
+    try {
+      const path = new URL(url).pathname.toLowerCase().replace(/\/+$/, "");
+      return path || "/";
+    } catch {
+      return "/";
+    }
+  }
+
+  function pathSegments(path) {
+    return path.split("/").filter(Boolean);
+  }
+
+  function isSingleSegmentPath(path, excludedSegments = []) {
+    const segments = pathSegments(path);
+    if (segments.length !== 1) {
+      return false;
+    }
+
+    return !excludedSegments.includes(segments[0].toLowerCase());
+  }
+
+  function isFeedLikePage(url, presetId) {
+    const path = normalizedPathname(url);
+    const segments = pathSegments(path);
+
+    switch (presetId) {
+      case "reddit":
+        return (
+          path === "/" ||
+          /^\/(best|hot|new|top|controversial)$/.test(path) ||
+          /^\/r\/(all|popular)$/.test(path) ||
+          (/^\/r\/[^/]+$/.test(path) && !path.includes("/comments/")) ||
+          /^\/user\/[^/]+$/.test(path)
+        );
+
+      case "youtube":
+        return (
+          path === "/" ||
+          /^\/shorts(\/|$)/.test(path) ||
+          /^\/feed(\/|$)/.test(path) ||
+          path === "/results"
+        );
+
+      case "instagram":
+        return (
+          path === "/" ||
+          /^\/(explore|reels)(\/|$)/.test(path) ||
+          isSingleSegmentPath(path, [
+            "accounts",
+            "about",
+            "direct",
+            "developer",
+            "legal",
+            "p",
+            "reel",
+            "stories"
+          ])
+        );
+
+      case "tiktok":
+        return (
+          path === "/" ||
+          /^\/(foryou|following|live|explore)(\/|$)/.test(path) ||
+          (/^\/@[^/]+$/.test(path) && segments.length === 1)
+        );
+
+      case "x":
+        return (
+          path === "/" ||
+          /^\/(home|explore|search|notifications)(\/|$)/.test(path) ||
+          /^\/i\/flow(\/|$)/.test(path) ||
+          isSingleSegmentPath(path, [
+            "about",
+            "compose",
+            "download",
+            "explore",
+            "home",
+            "i",
+            "jobs",
+            "messages",
+            "privacy",
+            "search",
+            "settings",
+            "tos"
+          ])
+        );
+
+      case "facebook":
+        return (
+          path === "/" ||
+          /^\/(watch|reel|reels|groups|gaming|marketplace|friends)(\/|$)/.test(
+            path
+          ) ||
+          isSingleSegmentPath(path, [
+            "about",
+            "events",
+            "help",
+            "login",
+            "messages",
+            "privacy",
+            "settings"
+          ])
+        );
+
+      case "linkedin":
+        return (
+          path === "/" ||
+          /^\/feed(\/|$)/.test(path) ||
+          /^\/mynetwork(\/|$)/.test(path) ||
+          /^\/in\/[^/]+\/recent-activity(\/|$)/.test(path)
+        );
+
+      case "threads":
+        return (
+          path === "/" ||
+          isSingleSegmentPath(path, ["about", "privacy", "terms"])
+        );
+
+      default:
+        return false;
+    }
+  }
+
+  function matchFeedShield(url, urlMatch, settingsValue) {
+    const settings = sanitizeSettings(settingsValue);
+
+    if (
+      !settings.strictFeeds ||
+      !urlMatch?.active ||
+      urlMatch.type !== "preset" ||
+      !urlMatch.presetId
+    ) {
+      return { active: false, reason: "not-feed-shielded" };
+    }
+
+    if (!isFeedLikePage(url, urlMatch.presetId)) {
+      return {
+        active: false,
+        reason: "not-feed-like",
+        presetId: urlMatch.presetId
+      };
+    }
+
+    return {
+      active: true,
+      presetId: urlMatch.presetId,
+      label: urlMatch.label,
+      host: urlMatch.host
+    };
   }
 
   function matchUrl(url, settingsValue) {
@@ -348,6 +505,8 @@
     sanitizeSettings,
     sanitizeAnalytics,
     getPresetById,
+    isFeedLikePage,
+    matchFeedShield,
     matchUrl,
     getApi
   };

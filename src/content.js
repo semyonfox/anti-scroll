@@ -26,6 +26,7 @@
 
   let settings = config.DEFAULT_SETTINGS;
   let activeMatch = null;
+  let feedShieldMatch = null;
   let locked = false;
   let rootPosition = { x: 0, y: 0 };
   let restoringScroll = false;
@@ -70,6 +71,44 @@
         scroll-behavior: auto !important;
         overscroll-behavior: contain !important;
       }
+
+      :root[data-anti-scroll-feed-shield="true"],
+      :root[data-anti-scroll-feed-shield="true"] body {
+        overflow: hidden !important;
+        background: #f7f8f8 !important;
+      }
+
+      :root[data-anti-scroll-feed-shield="true"] body > :not(#anti-scroll-feed-shield) {
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      #anti-scroll-feed-shield {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 2147483647 !important;
+        display: grid !important;
+        place-items: center !important;
+        padding: 24px !important;
+        background: #f7f8f8 !important;
+        color: #15191d !important;
+        font: 500 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+      }
+
+      #anti-scroll-feed-shield strong {
+        display: block !important;
+        margin-bottom: 6px !important;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0 !important;
+      }
+
+      #anti-scroll-feed-shield p {
+        margin: 0 !important;
+        max-width: 360px !important;
+        color: #697178 !important;
+        text-align: center !important;
+      }
     `;
 
     (document.head || document.documentElement).appendChild(style);
@@ -84,6 +123,14 @@
       );
     } catch {
       // CustomEvent can be unavailable in very old embedded documents.
+    }
+  }
+
+  function isTopFrame() {
+    try {
+      return root.top === root;
+    } catch {
+      return false;
     }
   }
 
@@ -294,6 +341,7 @@
     scanTimer = setTimeout(() => {
       scanTimer = null;
       scanScrollContainers();
+      pauseMediaOnFeed();
     }, 120);
   }
 
@@ -345,6 +393,67 @@
       domain: activeMatch.domain,
       label: activeMatch.label
     });
+  }
+
+  function pauseMediaOnFeed() {
+    if (!feedShieldMatch?.active) {
+      return;
+    }
+
+    for (const element of document.querySelectorAll("video, audio")) {
+      try {
+        element.pause();
+        element.preload = "none";
+      } catch {
+        // Media elements can be controlled by site wrappers; best effort only.
+      }
+    }
+  }
+
+  function showFeedShield() {
+    if (!feedShieldMatch?.active || !document.documentElement) {
+      return;
+    }
+
+    ensureStyle();
+    document.documentElement.dataset.antiScrollFeedShield = "true";
+
+    let shield = document.getElementById("anti-scroll-feed-shield");
+    if (!shield) {
+      shield = document.createElement("div");
+      shield.id = "anti-scroll-feed-shield";
+      shield.setAttribute("role", "status");
+      shield.setAttribute("aria-live", "polite");
+      shield.innerHTML = "<div><strong>Feed blocked</strong><p>Open a specific page or turn Anti Scroll off.</p></div>";
+      document.documentElement.appendChild(shield);
+    }
+
+    pauseMediaOnFeed();
+  }
+
+  function hideFeedShield() {
+    if (document.documentElement) {
+      delete document.documentElement.dataset.antiScrollFeedShield;
+    }
+
+    document.getElementById("anti-scroll-feed-shield")?.remove();
+    feedShieldMatch = null;
+  }
+
+  function updateFeedShield(match) {
+    if (!isTopFrame() || !match?.active) {
+      hideFeedShield();
+      return;
+    }
+
+    feedShieldMatch = config.matchFeedShield(location.href, match, settings);
+
+    if (feedShieldMatch.active) {
+      showFeedShield();
+      return;
+    }
+
+    hideFeedShield();
   }
 
   function getCandidateUrls() {
@@ -405,6 +514,7 @@
     locked = false;
     syncLockAttribute();
     dispatchMainLockState();
+    hideFeedShield();
     stopContainerWatch();
   }
 
@@ -414,7 +524,9 @@
 
     if (activeMatch) {
       enableLock();
+      updateFeedShield(activeMatch);
     } else {
+      updateFeedShield(null);
       disableLock();
     }
 

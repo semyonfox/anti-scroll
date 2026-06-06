@@ -296,6 +296,7 @@
   }
 
   function renderOptions() {
+    elements.strictFeeds.checked = state.settings.strictFeeds;
     elements.allowEditableFields.checked = state.settings.allowEditableFields;
     elements.allowMessagingPages.checked = state.settings.allowMessagingPages;
   }
@@ -506,6 +507,7 @@
       "selectAll",
       "clearSelected",
       "siteList",
+      "strictFeeds",
       "allowEditableFields",
       "allowMessagingPages",
       "attemptTotal",
@@ -552,6 +554,7 @@
     elements.siteList.addEventListener("click", clickSiteList);
     elements.selectAll.addEventListener("click", selectAll);
     elements.clearSelected.addEventListener("click", clearSelected);
+    elements.strictFeeds.addEventListener("change", toggleOption);
     elements.allowEditableFields.addEventListener("change", toggleOption);
     elements.allowMessagingPages.addEventListener("change", toggleOption);
     elements.resetStats.addEventListener("click", resetStats);

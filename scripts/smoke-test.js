@@ -51,6 +51,26 @@ const cases = [
   ]
 ];
 
+const feedCases = [
+  ["https://www.reddit.com/", true],
+  ["https://www.reddit.com/r/all/", true],
+  ["https://www.reddit.com/r/webdev/comments/abc/post/", false],
+  ["https://www.youtube.com/", true],
+  ["https://www.youtube.com/shorts/abc123", true],
+  ["https://www.youtube.com/watch?v=abc123", false],
+  ["https://www.instagram.com/", true],
+  ["https://www.instagram.com/direct/inbox/", false],
+  ["https://www.tiktok.com/foryou", true],
+  ["https://www.tiktok.com/@someone/video/123", false],
+  ["https://x.com/home", true],
+  ["https://x.com/messages", false],
+  ["https://www.linkedin.com/feed/", true],
+  ["https://www.linkedin.com/messaging/", false],
+  ["https://www.facebook.com/watch", true],
+  ["https://www.facebook.com/messages", false],
+  ["https://www.threads.net/@someone", true]
+];
+
 for (const [settings, url, active, marker] of cases) {
   const match = config.matchUrl(url, settings);
 
@@ -72,6 +92,14 @@ for (const [settings, url, active, marker] of cases) {
 
   if (!active && marker !== match.reason) {
     throw new Error(`${url}: expected reason ${marker}, got ${match.reason}`);
+  }
+}
+
+for (const [url, expected] of feedCases) {
+  const match = config.matchUrl(url, baseSettings);
+  const shield = config.matchFeedShield(url, match, baseSettings);
+  if (shield.active !== expected) {
+    throw new Error(`${url}: expected feed shield=${expected}, got ${shield.active}`);
   }
 }
 
