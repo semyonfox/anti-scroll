@@ -35,7 +35,7 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 - Uses three clear modes: off, selected sites, or all sites.
 - Lets you run blocking for a chosen number of minutes.
 - Supports a searchable list of social presets plus custom domains.
-- Hides known feed routes such as X home, Instagram/Reels, YouTube Shorts, TikTok, Reddit feeds, LinkedIn feed, Facebook watch/feed, and Threads.
+- Hides the feed area on known feed routes such as X home, Instagram/Reels, YouTube Shorts, TikTok, Reddit feeds, LinkedIn feed, Facebook watch/feed, and Threads.
 - Leaves normal scrolling alone on pages that are not shielded.
 - Allows typing fields by default.
 - Allows common DM/messaging pages by default.

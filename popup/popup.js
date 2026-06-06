@@ -189,14 +189,14 @@
           ? "All sites are blocked"
           : match.type === "custom"
             ? "This site is blocked"
-            : "This feed is blocked";
+            : "Feed area is hidden";
       return;
     }
 
     if (match?.selected && match.reason === "not-feed-like") {
       elements.statusPill.textContent = "Selected";
       elements.statusPill.classList.add("selected");
-      elements.currentStatus.textContent = "Feed pages are blocked";
+      elements.currentStatus.textContent = "Feed areas are hidden";
       return;
     }
 

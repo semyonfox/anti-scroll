@@ -35,10 +35,66 @@
   let scanTimer = null;
   let periodicScanTimer = null;
   let mutationObserver = null;
+  let surfaceObserver = null;
+  let surfaceTimer = null;
   let pointerStart = null;
 
   const scrollContainers = new Set();
   const scrollPositions = new WeakMap();
+  const surfaceTargets = new Set();
+  const FEED_SELECTORS = {
+    reddit: [
+      "shreddit-feed",
+      "faceplate-batch",
+      "[data-testid='post-container']",
+      "main shreddit-post",
+      "main"
+    ],
+    youtube: [
+      "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer",
+      "ytd-browse[page-subtype='subscriptions'] ytd-section-list-renderer",
+      "ytd-shorts",
+      "ytd-search ytd-section-list-renderer",
+      "ytd-two-column-search-results-renderer",
+      "ytd-browse ytd-rich-grid-renderer"
+    ],
+    instagram: [
+      "main article",
+      "main section",
+      "main div[role='presentation']",
+      "main"
+    ],
+    tiktok: [
+      "main [data-e2e='recommend-list-item-container']",
+      "main [data-e2e='browse-video-list']",
+      "main [data-e2e='user-post-item']",
+      "main div[class*='DivVideoFeed']",
+      "main"
+    ],
+    x: [
+      "main[role='main'] div[data-testid='primaryColumn'] section",
+      "main[role='main'] div[aria-label*='Timeline']",
+      "main[role='main'] div[data-testid='cellInnerDiv']",
+      "main[role='main'] article[data-testid='tweet']"
+    ],
+    facebook: [
+      "div[role='feed']",
+      "div[data-pagelet='MainFeed']",
+      "div[data-pagelet*='FeedUnit']",
+      "div[data-pagelet^='VideoHome']",
+      "div[role='main']"
+    ],
+    linkedin: [
+      "main div.scaffold-finite-scroll",
+      "main .feed-shared-update-v2",
+      "main"
+    ],
+    threads: [
+      "main [role='article']",
+      "main div[aria-label*='Timeline']",
+      "main"
+    ]
+  };
 
   function storageGet(area, defaults) {
     return new Promise((resolve) => {
@@ -108,6 +164,41 @@
         max-width: 360px !important;
         color: #697178 !important;
         text-align: center !important;
+      }
+
+      :root[data-anti-scroll-feed-surface="true"] [data-anti-scroll-feed-target="true"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      #anti-scroll-feed-placeholder {
+        box-sizing: border-box !important;
+        width: min(680px, calc(100% - 24px)) !important;
+        min-height: 180px !important;
+        display: grid !important;
+        place-items: center !important;
+        margin: 12px auto !important;
+        padding: 24px !important;
+        border: 1px solid rgba(21, 25, 29, 0.12) !important;
+        border-radius: 8px !important;
+        background: #f7f8f8 !important;
+        color: #15191d !important;
+        font: 500 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        text-align: center !important;
+      }
+
+      #anti-scroll-feed-placeholder strong {
+        display: block !important;
+        margin-bottom: 6px !important;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0 !important;
+      }
+
+      #anti-scroll-feed-placeholder p {
+        margin: 0 !important;
+        color: #697178 !important;
       }
     `;
 
@@ -374,6 +465,142 @@
     }
   }
 
+  function scheduleSurfaceRefresh() {
+    if (!shieldMatch?.active || shieldMatch.type !== "feed" || surfaceTimer) {
+      return;
+    }
+
+    surfaceTimer = setTimeout(() => {
+      surfaceTimer = null;
+      applyFeedSurfaceShield();
+    }, 120);
+  }
+
+  function startSurfaceWatch() {
+    if (surfaceObserver || !document.documentElement) {
+      return;
+    }
+
+    surfaceObserver = new MutationObserver(scheduleSurfaceRefresh);
+    surfaceObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function stopSurfaceWatch() {
+    surfaceObserver?.disconnect();
+    surfaceObserver = null;
+    clearTimeout(surfaceTimer);
+    surfaceTimer = null;
+  }
+
+  function clearFeedTargets() {
+    for (const element of Array.from(surfaceTargets)) {
+      if (element instanceof Element) {
+        delete element.dataset.antiScrollFeedTarget;
+      }
+    }
+
+    surfaceTargets.clear();
+  }
+
+  function getFeedTargets() {
+    const selectors = FEED_SELECTORS[shieldMatch?.presetId] || [];
+    const targets = [];
+
+    for (const selector of selectors) {
+      for (const element of document.querySelectorAll(selector)) {
+        if (
+          element instanceof HTMLElement &&
+          element.id !== "anti-scroll-feed-placeholder" &&
+          !element.closest("#anti-scroll-feed-placeholder")
+        ) {
+          targets.push(element);
+        }
+      }
+
+      if (targets.length) {
+        break;
+      }
+    }
+
+    return targets.slice(0, 80);
+  }
+
+  function targetInsertionParent(target) {
+    if (!target || !target.parentElement) {
+      return document.body || document.documentElement;
+    }
+
+    return target.parentElement;
+  }
+
+  function insertFeedPlaceholder(targets) {
+    const firstTarget = targets[0];
+    const parent = targetInsertionParent(firstTarget);
+    let placeholder = document.getElementById("anti-scroll-feed-placeholder");
+
+    if (!placeholder) {
+      placeholder = document.createElement("div");
+      placeholder.id = "anti-scroll-feed-placeholder";
+      placeholder.setAttribute("role", "status");
+      placeholder.setAttribute("aria-live", "polite");
+    }
+
+    const content = document.createElement("div");
+    const heading = document.createElement("strong");
+    const copy = document.createElement("p");
+
+    heading.textContent = "Feed blocked";
+    copy.textContent = "The rest of the page is still available.";
+    content.append(heading, copy);
+    placeholder.replaceChildren(content);
+
+    if (firstTarget && firstTarget.parentElement === parent) {
+      parent.insertBefore(placeholder, firstTarget);
+      return;
+    }
+
+    parent.prepend(placeholder);
+  }
+
+  function applyFeedSurfaceShield() {
+    if (!shieldMatch?.active || shieldMatch.type !== "feed" || !isTopFrame()) {
+      hideFeedSurfaceShield();
+      return;
+    }
+
+    ensureStyle();
+    hideFullPageShield();
+    document.documentElement.dataset.antiScrollFeedSurface = "true";
+    document.documentElement.dataset.antiScrollFeedPreset =
+      shieldMatch.presetId || "";
+
+    clearFeedTargets();
+    const targets = getFeedTargets();
+
+    for (const target of targets) {
+      target.dataset.antiScrollFeedTarget = "true";
+      surfaceTargets.add(target);
+    }
+
+    insertFeedPlaceholder(targets);
+    pauseMediaOnShield();
+    startSurfaceWatch();
+  }
+
+  function hideFeedSurfaceShield() {
+    if (document.documentElement) {
+      delete document.documentElement.dataset.antiScrollFeedSurface;
+      delete document.documentElement.dataset.antiScrollFeedPreset;
+    }
+
+    clearFeedTargets();
+    document.getElementById("anti-scroll-feed-placeholder")?.remove();
+    stopSurfaceWatch();
+  }
+
   function reportAttempt() {
     if (!activeMatch) {
       return;
@@ -410,12 +637,17 @@
     }
   }
 
-  function showShield() {
-    if (!shieldMatch?.active || !document.documentElement) {
+  function showFullPageShield() {
+    if (
+      !shieldMatch?.active ||
+      shieldMatch.type === "feed" ||
+      !document.documentElement
+    ) {
       return;
     }
 
     ensureStyle();
+    hideFeedSurfaceShield();
     document.documentElement.dataset.antiScrollShield = "true";
 
     let shield = document.getElementById("anti-scroll-shield");
@@ -428,15 +660,8 @@
     }
 
     const title =
-      shieldMatch.type === "all"
-        ? "Page blocked"
-        : shieldMatch.type === "custom"
-          ? "Site blocked"
-          : "Feed blocked";
-    const detail =
-      shieldMatch.type === "feed"
-        ? "Open a specific page or turn Anti Scroll off."
-        : "Turn Anti Scroll off to use this page.";
+      shieldMatch.type === "all" ? "Page blocked" : "Site blocked";
+    const detail = "Turn Anti Scroll off to use this page.";
     const content = document.createElement("div");
     const heading = document.createElement("strong");
     const copy = document.createElement("p");
@@ -448,12 +673,17 @@
     pauseMediaOnShield();
   }
 
-  function hideShield() {
+  function hideFullPageShield() {
     if (document.documentElement) {
       delete document.documentElement.dataset.antiScrollShield;
     }
 
     document.getElementById("anti-scroll-shield")?.remove();
+  }
+
+  function hideShield() {
+    hideFullPageShield();
+    hideFeedSurfaceShield();
     shieldMatch = null;
   }
 
@@ -465,8 +695,13 @@
 
     shieldMatch = match;
 
+    if (shieldMatch.type === "feed") {
+      applyFeedSurfaceShield();
+      return;
+    }
+
     if (shieldMatch.active) {
-      showShield();
+      showFullPageShield();
       return;
     }
 
@@ -525,13 +760,22 @@
 
   function disableLock() {
     if (!locked) {
+      hideShield();
+      return;
+    }
+
+    releaseLockOnly();
+    hideShield();
+  }
+
+  function releaseLockOnly() {
+    if (!locked) {
       return;
     }
 
     locked = false;
     syncLockAttribute();
     dispatchMainLockState();
-    hideShield();
     stopContainerWatch();
   }
 
@@ -540,7 +784,11 @@
     activeMatch = match.active ? match : null;
 
     if (activeMatch) {
-      enableLock();
+      if (activeMatch.type === "feed") {
+        releaseLockOnly();
+      } else {
+        enableLock();
+      }
       updateShield(activeMatch);
     } else {
       updateShield(null);
