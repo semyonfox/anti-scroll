@@ -1,8 +1,8 @@
 # Anti Scroll
 
-A no-build WebExtension that blocks user scrolling on selected sites.
+A no-build WebExtension that breaks distracting feeds on selected sites.
 
-The first target is the browser layer: stop wheel, touch, and scroll-key loops on social feeds while keeping normal browsing intact elsewhere.
+The first target is the browser layer: hide feed surfaces while keeping normal pages on the same sites usable.
 
 ## Load Locally
 
@@ -32,11 +32,11 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 
 ## What It Does
 
-- Blocks wheel, touchmove, and keyboard scrolling on selected sites.
 - Uses three clear modes: off, selected sites, or all sites.
 - Lets you run blocking for a chosen number of minutes.
 - Supports a searchable list of social presets plus custom domains.
 - Hides known feed routes such as X home, Instagram/Reels, YouTube Shorts, TikTok, Reddit feeds, LinkedIn feed, Facebook watch/feed, and Threads.
+- Leaves normal scrolling alone on pages that are not shielded.
 - Allows typing fields by default.
 - Allows common DM/messaging pages by default.
 - Tracks blocked attempts locally only.

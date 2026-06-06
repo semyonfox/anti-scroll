@@ -393,9 +393,53 @@
 
     return {
       active: true,
+      type: "feed",
       presetId: urlMatch.presetId,
       label: urlMatch.label,
       host: urlMatch.host
+    };
+  }
+
+  function matchShield(url, settingsValue) {
+    const urlMatch = matchUrl(url, settingsValue);
+
+    if (!urlMatch.active) {
+      return urlMatch;
+    }
+
+    if (urlMatch.type === "all") {
+      return {
+        ...urlMatch,
+        active: true,
+        type: "all",
+        reason: "all-sites"
+      };
+    }
+
+    if (urlMatch.type === "custom") {
+      return {
+        ...urlMatch,
+        active: true,
+        type: "custom",
+        reason: "custom-domain"
+      };
+    }
+
+    const feedShield = matchFeedShield(url, urlMatch, settingsValue);
+    if (feedShield.active) {
+      return {
+        ...urlMatch,
+        ...feedShield,
+        active: true,
+        reason: "feed"
+      };
+    }
+
+    return {
+      ...urlMatch,
+      active: false,
+      reason: feedShield.reason,
+      selected: true
     };
   }
 
@@ -507,6 +551,7 @@
     getPresetById,
     isFeedLikePage,
     matchFeedShield,
+    matchShield,
     matchUrl,
     getApi
   };

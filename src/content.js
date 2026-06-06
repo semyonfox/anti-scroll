@@ -26,7 +26,7 @@
 
   let settings = config.DEFAULT_SETTINGS;
   let activeMatch = null;
-  let feedShieldMatch = null;
+  let shieldMatch = null;
   let locked = false;
   let rootPosition = { x: 0, y: 0 };
   let restoringScroll = false;
@@ -72,18 +72,18 @@
         overscroll-behavior: contain !important;
       }
 
-      :root[data-anti-scroll-feed-shield="true"],
-      :root[data-anti-scroll-feed-shield="true"] body {
+      :root[data-anti-scroll-shield="true"],
+      :root[data-anti-scroll-shield="true"] body {
         overflow: hidden !important;
         background: #f7f8f8 !important;
       }
 
-      :root[data-anti-scroll-feed-shield="true"] body > :not(#anti-scroll-feed-shield) {
+      :root[data-anti-scroll-shield="true"] body > :not(#anti-scroll-shield) {
         visibility: hidden !important;
         pointer-events: none !important;
       }
 
-      #anti-scroll-feed-shield {
+      #anti-scroll-shield {
         position: fixed !important;
         inset: 0 !important;
         z-index: 2147483647 !important;
@@ -95,7 +95,7 @@
         font: 500 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
       }
 
-      #anti-scroll-feed-shield strong {
+      #anti-scroll-shield strong {
         display: block !important;
         margin-bottom: 6px !important;
         font-size: 18px !important;
@@ -103,7 +103,7 @@
         letter-spacing: 0 !important;
       }
 
-      #anti-scroll-feed-shield p {
+      #anti-scroll-shield p {
         margin: 0 !important;
         max-width: 360px !important;
         color: #697178 !important;
@@ -341,7 +341,7 @@
     scanTimer = setTimeout(() => {
       scanTimer = null;
       scanScrollContainers();
-      pauseMediaOnFeed();
+      pauseMediaOnShield();
     }, 120);
   }
 
@@ -395,8 +395,8 @@
     });
   }
 
-  function pauseMediaOnFeed() {
-    if (!feedShieldMatch?.active) {
+  function pauseMediaOnShield() {
+    if (!shieldMatch?.active) {
       return;
     }
 
@@ -410,50 +410,67 @@
     }
   }
 
-  function showFeedShield() {
-    if (!feedShieldMatch?.active || !document.documentElement) {
+  function showShield() {
+    if (!shieldMatch?.active || !document.documentElement) {
       return;
     }
 
     ensureStyle();
-    document.documentElement.dataset.antiScrollFeedShield = "true";
+    document.documentElement.dataset.antiScrollShield = "true";
 
-    let shield = document.getElementById("anti-scroll-feed-shield");
+    let shield = document.getElementById("anti-scroll-shield");
     if (!shield) {
       shield = document.createElement("div");
-      shield.id = "anti-scroll-feed-shield";
+      shield.id = "anti-scroll-shield";
       shield.setAttribute("role", "status");
       shield.setAttribute("aria-live", "polite");
-      shield.innerHTML = "<div><strong>Feed blocked</strong><p>Open a specific page or turn Anti Scroll off.</p></div>";
       document.documentElement.appendChild(shield);
     }
 
-    pauseMediaOnFeed();
+    const title =
+      shieldMatch.type === "all"
+        ? "Page blocked"
+        : shieldMatch.type === "custom"
+          ? "Site blocked"
+          : "Feed blocked";
+    const detail =
+      shieldMatch.type === "feed"
+        ? "Open a specific page or turn Anti Scroll off."
+        : "Turn Anti Scroll off to use this page.";
+    const content = document.createElement("div");
+    const heading = document.createElement("strong");
+    const copy = document.createElement("p");
+
+    heading.textContent = title;
+    copy.textContent = detail;
+    content.append(heading, copy);
+    shield.replaceChildren(content);
+    pauseMediaOnShield();
   }
 
-  function hideFeedShield() {
+  function hideShield() {
     if (document.documentElement) {
-      delete document.documentElement.dataset.antiScrollFeedShield;
+      delete document.documentElement.dataset.antiScrollShield;
     }
 
-    document.getElementById("anti-scroll-feed-shield")?.remove();
-    feedShieldMatch = null;
+    document.getElementById("anti-scroll-shield")?.remove();
+    shieldMatch = null;
   }
 
-  function updateFeedShield(match) {
+  function updateShield(match) {
     if (!isTopFrame() || !match?.active) {
-      hideFeedShield();
+      hideShield();
       return;
     }
 
-    feedShieldMatch = config.matchFeedShield(location.href, match, settings);
+    shieldMatch = match;
 
-    if (feedShieldMatch.active) {
-      showFeedShield();
+    if (shieldMatch.active) {
+      showShield();
       return;
     }
 
-    hideFeedShield();
+    hideShield();
   }
 
   function getCandidateUrls() {
@@ -476,7 +493,7 @@
 
   function resolveCurrentMatch() {
     const matches = getCandidateUrls().map((url) =>
-      config.matchUrl(url, settings)
+      config.matchShield(url, settings)
     );
     return matches.find((match) => match.active) || matches[0];
   }
@@ -514,7 +531,7 @@
     locked = false;
     syncLockAttribute();
     dispatchMainLockState();
-    hideFeedShield();
+    hideShield();
     stopContainerWatch();
   }
 
@@ -524,9 +541,9 @@
 
     if (activeMatch) {
       enableLock();
-      updateFeedShield(activeMatch);
+      updateShield(activeMatch);
     } else {
-      updateFeedShield(null);
+      updateShield(null);
       disableLock();
     }
 

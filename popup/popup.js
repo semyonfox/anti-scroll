@@ -70,7 +70,7 @@
 
   function refreshMatch() {
     state.tabMatch = state.tab?.url
-      ? config.matchUrl(state.tab.url, state.settings)
+      ? config.matchShield(state.tab.url, state.settings)
       : { active: false, reason: "no-tab" };
   }
 
@@ -178,12 +178,25 @@
 
     if (match?.active) {
       elements.statusPill.textContent =
-        state.settings.mode === config.MODES.ALL ? "All Sites" : "Blocked";
+        match.type === "all"
+          ? "All Sites"
+          : match.type === "custom"
+            ? "Blocked"
+            : "Feed";
       elements.statusPill.classList.add("blocked");
       elements.currentStatus.textContent =
-        state.settings.mode === config.MODES.ALL
+        match.type === "all"
           ? "All sites are blocked"
-          : "This page is blocked";
+          : match.type === "custom"
+            ? "This site is blocked"
+            : "This feed is blocked";
+      return;
+    }
+
+    if (match?.selected && match.reason === "not-feed-like") {
+      elements.statusPill.textContent = "Selected";
+      elements.statusPill.classList.add("selected");
+      elements.currentStatus.textContent = "Feed pages are blocked";
       return;
     }
 

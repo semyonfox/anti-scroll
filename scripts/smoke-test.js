@@ -71,6 +71,20 @@ const feedCases = [
   ["https://www.threads.net/@someone", true]
 ];
 
+const shieldCases = [
+  ["https://www.youtube.com/shorts/abc123", true, "feed"],
+  ["https://www.youtube.com/watch?v=abc123", false, "not-feed-like"],
+  ["https://www.linkedin.com/feed/", true, "feed"],
+  ["https://www.linkedin.com/messaging/", false, "messaging-page"],
+  ["https://news.ycombinator.com/news", true, "custom"],
+  [
+    "https://openai.com/",
+    true,
+    "all",
+    config.sanitizeSettings({ mode: config.MODES.ALL })
+  ]
+];
+
 for (const [settings, url, active, marker] of cases) {
   const match = config.matchUrl(url, settings);
 
@@ -100,6 +114,21 @@ for (const [url, expected] of feedCases) {
   const shield = config.matchFeedShield(url, match, baseSettings);
   if (shield.active !== expected) {
     throw new Error(`${url}: expected feed shield=${expected}, got ${shield.active}`);
+  }
+}
+
+for (const [url, expected, marker, settings = baseSettings] of shieldCases) {
+  const shield = config.matchShield(url, settings);
+  if (shield.active !== expected) {
+    throw new Error(`${url}: expected shield=${expected}, got ${shield.active}`);
+  }
+
+  if (expected && shield.type !== marker) {
+    throw new Error(`${url}: expected shield type ${marker}, got ${shield.type}`);
+  }
+
+  if (!expected && shield.reason !== marker) {
+    throw new Error(`${url}: expected shield reason ${marker}, got ${shield.reason}`);
   }
 }
 
