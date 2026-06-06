@@ -37,6 +37,7 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 - Supports a searchable list of social presets plus custom domains.
 - Hides the feed area on known feed routes such as X home, Instagram/Reels, YouTube Shorts, TikTok, Reddit feeds, LinkedIn feed, Facebook watch/feed, and Threads.
 - Leaves normal scrolling alone on pages that are not shielded.
+- Uses narrow feed selectors and fails open if a page changes, instead of hiding the whole page by accident.
 - Allows typing fields by default.
 - Allows common DM/messaging pages by default.
 - Tracks blocked attempts locally only.

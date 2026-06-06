@@ -47,52 +47,61 @@
       "shreddit-feed",
       "faceplate-batch",
       "[data-testid='post-container']",
-      "main shreddit-post",
-      "main"
+      "shreddit-post",
+      "article:has(a[href*='/comments/'])"
     ],
     youtube: [
+      "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer #contents",
       "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer",
-      "ytd-browse[page-subtype='subscriptions'] ytd-section-list-renderer",
+      "ytd-browse[page-subtype='subscriptions'] ytd-section-list-renderer #contents",
       "ytd-shorts",
       "ytd-search ytd-section-list-renderer",
       "ytd-two-column-search-results-renderer",
-      "ytd-browse ytd-rich-grid-renderer"
+      "ytd-rich-shelf-renderer[is-shorts]",
+      "ytd-reel-shelf-renderer",
+      "ytd-video-renderer:has(a[href^='/shorts/'])"
     ],
     instagram: [
       "main article",
-      "main section",
-      "main div[role='presentation']",
-      "main"
+      "main a[href^='/p/']",
+      "main a[href^='/reel/']",
+      "main div[role='presentation']:has(a[href^='/p/'])",
+      "main div[role='presentation']:has(a[href^='/reel/'])"
     ],
     tiktok: [
+      "#main-content-homepage_hot",
+      "#main-content-explore_page",
       "main [data-e2e='recommend-list-item-container']",
+      "main [data-e2e='feed-video']",
       "main [data-e2e='browse-video-list']",
       "main [data-e2e='user-post-item']",
-      "main div[class*='DivVideoFeed']",
-      "main"
+      "main div[class*='DivVideoFeed']"
     ],
     x: [
-      "main[role='main'] div[data-testid='primaryColumn'] section",
-      "main[role='main'] div[aria-label*='Timeline']",
       "main[role='main'] div[data-testid='cellInnerDiv']",
-      "main[role='main'] article[data-testid='tweet']"
+      "main[role='main'] article[data-testid='tweet']",
+      "main[role='main'] div[aria-label*='Timeline'] > div > div",
+      "main[role='main'] div[data-testid='primaryColumn'] section"
     ],
     facebook: [
       "div[role='feed']",
+      "div[role='main'] div[role='article']",
       "div[data-pagelet='MainFeed']",
       "div[data-pagelet*='FeedUnit']",
-      "div[data-pagelet^='VideoHome']",
-      "div[role='main']"
+      "div[data-pagelet^='VideoHome']"
     ],
     linkedin: [
-      "main div.scaffold-finite-scroll",
       "main .feed-shared-update-v2",
-      "main"
+      "main div[data-view-tracking-scope*='FEED_UPDATE_SERVED'] > div",
+      "main .scaffold-finite-scroll__content > div",
+      ".feed-new-update-pill__new-update-button",
+      ".feed-shared-news-module",
+      ".feed-follows-module",
+      ".scaffold-finite-scroll__load-button"
     ],
     threads: [
       "main [role='article']",
-      "main div[aria-label*='Timeline']",
-      "main"
+      "main div[aria-label*='Timeline'] [role='article']"
     ]
   };
 
@@ -510,7 +519,15 @@
     const targets = [];
 
     for (const selector of selectors) {
-      for (const element of document.querySelectorAll(selector)) {
+      let matches = [];
+
+      try {
+        matches = Array.from(document.querySelectorAll(selector));
+      } catch {
+        continue;
+      }
+
+      for (const element of matches) {
         if (
           element instanceof HTMLElement &&
           element.id !== "anti-scroll-feed-placeholder" &&
@@ -537,6 +554,11 @@
   }
 
   function insertFeedPlaceholder(targets) {
+    if (!targets.length) {
+      document.getElementById("anti-scroll-feed-placeholder")?.remove();
+      return;
+    }
+
     const firstTarget = targets[0];
     const parent = targetInsertionParent(firstTarget);
     let placeholder = document.getElementById("anti-scroll-feed-placeholder");
