@@ -11,7 +11,7 @@ The first target is the browser layer: hide feed surfaces while keeping normal p
 1. Open `chrome://extensions`.
 2. Enable developer mode.
 3. Choose "Load unpacked".
-4. Select this folder: `C:\Users\foxsc\code\personal\anti-scroll`.
+4. Select the cloned repository folder.
 
 ### Firefox
 
