@@ -8,7 +8,9 @@
     return;
   }
 
-  const MAIN_LOCK_EVENT = "anti-scroll-main-lock-state";
+  const MAIN_LOCK_TOKEN_REQUEST_EVENT = "anti-scroll-main-lock-token-request";
+  const MAIN_LOCK_TOKEN_RESPONSE_EVENT = "anti-scroll-main-lock-token-response";
+  const MAIN_LOCK_STATE_EVENT = "anti-scroll-main-lock-state";
   const SCROLLABLE_OVERFLOW = /^(auto|scroll|overlay)$/;
   const MAX_SCAN_COUNT = 900;
   const SCROLL_KEYS = new Set([
@@ -37,74 +39,15 @@
   let mutationObserver = null;
   let surfaceObserver = null;
   let surfaceTimer = null;
-  let surfaceIntervalTimer = null;
   let pointerStart = null;
+  let mainLockToken = null;
+  let lockListenersAttached = false;
+  let lastSeenHref = location.href;
 
   const scrollContainers = new Set();
   const scrollPositions = new WeakMap();
   const surfaceTargets = new Set();
-  const FEED_SELECTORS = {
-    reddit: [
-      "shreddit-feed",
-      "faceplate-batch",
-      "[data-testid='post-container']",
-      "shreddit-post",
-      "article:has(a[href*='/comments/'])"
-    ],
-    youtube: [
-      "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer #contents",
-      "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer",
-      "ytd-browse[page-subtype='subscriptions'] ytd-section-list-renderer #contents",
-      "ytd-shorts",
-      "ytd-search ytd-section-list-renderer",
-      "ytd-two-column-search-results-renderer",
-      "ytd-rich-shelf-renderer[is-shorts]",
-      "ytd-reel-shelf-renderer",
-      "ytd-video-renderer:has(a[href^='/shorts/'])"
-    ],
-    instagram: [
-      "main article",
-      "main a[href^='/p/']",
-      "main a[href^='/reel/']",
-      "main div[role='presentation']:has(a[href^='/p/'])",
-      "main div[role='presentation']:has(a[href^='/reel/'])"
-    ],
-    tiktok: [
-      "#main-content-homepage_hot",
-      "#main-content-explore_page",
-      "main [data-e2e='recommend-list-item-container']",
-      "main [data-e2e='feed-video']",
-      "main [data-e2e='browse-video-list']",
-      "main [data-e2e='user-post-item']",
-      "main div[class*='DivVideoFeed']"
-    ],
-    x: [
-      "main[role='main'] div[data-testid='cellInnerDiv']",
-      "main[role='main'] article[data-testid='tweet']",
-      "main[role='main'] div[aria-label*='Timeline'] > div > div",
-      "main[role='main'] div[data-testid='primaryColumn'] section"
-    ],
-    facebook: [
-      "div[role='feed']",
-      "div[role='main'] div[role='article']",
-      "div[data-pagelet='MainFeed']",
-      "div[data-pagelet*='FeedUnit']",
-      "div[data-pagelet^='VideoHome']"
-    ],
-    linkedin: [
-      "main .feed-shared-update-v2",
-      "main div[data-view-tracking-scope*='FEED_UPDATE_SERVED'] > div",
-      "main .scaffold-finite-scroll__content > div",
-      ".feed-new-update-pill__new-update-button",
-      ".feed-shared-news-module",
-      ".feed-follows-module",
-      ".scaffold-finite-scroll__load-button"
-    ],
-    threads: [
-      "main [role='article']",
-      "main div[aria-label*='Timeline'] [role='article']"
-    ]
-  };
+  const FEED_SELECTORS = config.FEED_SELECTORS;
 
   function buildFeedSelectorCss() {
     const rules = [];
@@ -124,14 +67,7 @@
     return rules.join("\n");
   }
 
-  function storageGet(area, defaults) {
-    return new Promise((resolve) => {
-      const result = area.get(defaults, resolve);
-      if (result?.then) {
-        result.then(resolve);
-      }
-    });
-  }
+  const { storageGet } = config;
 
   function ensureStyle() {
     if (document.getElementById("anti-scroll-style")) {
@@ -235,11 +171,35 @@
     (document.head || document.documentElement).appendChild(style);
   }
 
+  function requestMainLockToken() {
+    const onTokenResponse = (event) => {
+      const token = event.detail?.token;
+      if (typeof token === "string" && token) {
+        mainLockToken = token;
+      }
+    };
+
+    try {
+      document.addEventListener(MAIN_LOCK_TOKEN_RESPONSE_EVENT, onTokenResponse, {
+        once: true
+      });
+      document.dispatchEvent(new CustomEvent(MAIN_LOCK_TOKEN_REQUEST_EVENT));
+    } catch {
+      document.removeEventListener(MAIN_LOCK_TOKEN_RESPONSE_EVENT, onTokenResponse);
+    }
+  }
+
   function dispatchMainLockState() {
+    syncLockAttribute();
+
+    if (!mainLockToken) {
+      return;
+    }
+
     try {
       document.dispatchEvent(
-        new CustomEvent(MAIN_LOCK_EVENT, {
-          detail: { locked }
+        new CustomEvent(MAIN_LOCK_STATE_EVENT, {
+          detail: { locked, token: mainLockToken }
         })
       );
     } catch {
@@ -517,7 +477,6 @@
       subtree: true
     });
 
-    surfaceIntervalTimer = setInterval(applyFeedSurfaceShield, 1000);
   }
 
   function stopSurfaceWatch() {
@@ -525,8 +484,6 @@
     surfaceObserver = null;
     clearTimeout(surfaceTimer);
     surfaceTimer = null;
-    clearInterval(surfaceIntervalTimer);
-    surfaceIntervalTimer = null;
   }
 
   function clearFeedTargets() {
@@ -562,7 +519,7 @@
         }
       }
 
-      if (targets.length) {
+      if (targets.length >= 80) {
         break;
       }
     }
@@ -595,21 +552,27 @@
       placeholder.setAttribute("aria-live", "polite");
     }
 
-    const content = document.createElement("div");
-    const heading = document.createElement("strong");
-    const copy = document.createElement("p");
+    if (!placeholder.firstChild) {
+      const content = document.createElement("div");
+      const heading = document.createElement("strong");
+      const copy = document.createElement("p");
 
-    heading.textContent = "Feed blocked";
-    copy.textContent = "The rest of the page is still available.";
-    content.append(heading, copy);
-    placeholder.replaceChildren(content);
+      heading.textContent = "Feed blocked";
+      copy.textContent = "The rest of the page is still available.";
+      content.append(heading, copy);
+      placeholder.replaceChildren(content);
+    }
 
     if (firstTarget && firstTarget.parentElement === parent) {
-      parent.insertBefore(placeholder, firstTarget);
+      if (placeholder.parentElement !== parent || placeholder.nextSibling !== firstTarget) {
+        parent.insertBefore(placeholder, firstTarget);
+      }
       return;
     }
 
-    parent.prepend(placeholder);
+    if (placeholder.parentElement !== parent || parent.firstChild !== placeholder) {
+      parent.prepend(placeholder);
+    }
   }
 
   function applyFeedSurfaceShield() {
@@ -659,14 +622,24 @@
     }
 
     lastAttemptAt = now;
-    api.runtime.sendMessage({
-      type: "anti-scroll-attempt",
-      presetId: activeMatch.presetId || null,
-      matchType: activeMatch.type || null,
-      host: activeMatch.host,
-      domain: activeMatch.domain,
-      label: activeMatch.label
-    });
+    try {
+      const result = api.runtime.sendMessage(
+        {
+          type: "anti-scroll-attempt",
+          presetId: activeMatch.presetId || null,
+          matchType: activeMatch.type || null,
+          host: activeMatch.host,
+          domain: activeMatch.domain,
+          label: activeMatch.label
+        },
+        () => {}
+      );
+      if (result?.catch) {
+        result.catch(() => {});
+      }
+    } catch {
+      // Analytics should never interfere with enforcement.
+    }
   }
 
   function pauseMediaOnShield() {
@@ -747,18 +720,13 @@
       return;
     }
 
-    if (shieldMatch.active) {
-      showFullPageShield();
-      return;
-    }
-
-    hideShield();
+    showFullPageShield();
   }
 
   function getCandidateUrls() {
     const urls = [location.href];
 
-    if (document.referrer) {
+    if (!isTopFrame() && document.referrer) {
       urls.push(document.referrer);
     }
 
@@ -781,6 +749,10 @@
   }
 
   function syncLockAttribute() {
+    if (!document.documentElement) {
+      return;
+    }
+
     if (locked && settings.lockPage) {
       document.documentElement.dataset.antiScrollLocked = "true";
       return;
@@ -800,6 +772,7 @@
     captureRootScroll();
     locked = true;
     syncLockAttribute();
+    attachLockListeners();
     dispatchMainLockState();
     scanScrollContainers();
     startContainerWatch();
@@ -822,6 +795,7 @@
 
     locked = false;
     syncLockAttribute();
+    detachLockListeners();
     dispatchMainLockState();
     stopContainerWatch();
   }
@@ -842,21 +816,28 @@
       disableLock();
     }
 
-    scheduleTimerRefresh();
+    scheduleTimerRefresh(match);
   }
 
-  function scheduleTimerRefresh() {
+  function scheduleTimerRefresh(match = null) {
     clearTimeout(activeUntilTimer);
     activeUntilTimer = null;
 
-    if (!settings.activeUntil) {
+    const refreshTimes = [];
+
+    if (settings.activeUntil && settings.activeUntil > Date.now()) {
+      refreshTimes.push(settings.activeUntil);
+    }
+
+    if (match?.pausedUntil && match.pausedUntil > Date.now()) {
+      refreshTimes.push(match.pausedUntil);
+    }
+
+    if (!refreshTimes.length) {
       return;
     }
 
-    const delay = settings.activeUntil - Date.now();
-    if (delay <= 0) {
-      return;
-    }
+    const delay = Math.min(...refreshTimes) - Date.now();
 
     activeUntilTimer = setTimeout(applyState, Math.min(delay + 250, 2147483647));
   }
@@ -928,6 +909,11 @@
   }
 
   function notifyLocationChange() {
+    if (lastSeenHref === location.href) {
+      return;
+    }
+
+    lastSeenHref = location.href;
     captureRootScroll();
     applyState();
   }
@@ -949,52 +935,93 @@
     };
   }
 
-  root.addEventListener("wheel", blockEvent, { capture: true, passive: false });
-  root.addEventListener("mousewheel", blockEvent, {
-    capture: true,
-    passive: false
-  });
-  root.addEventListener("DOMMouseScroll", blockEvent, {
-    capture: true,
-    passive: false
-  });
-  root.addEventListener("touchmove", blockEvent, {
-    capture: true,
-    passive: false
-  });
-  root.addEventListener("keydown", blockEvent, { capture: true });
-  root.addEventListener("mousedown", blockEvent, {
-    capture: true,
-    passive: false
-  });
-  root.addEventListener("auxclick", blockEvent, {
-    capture: true,
-    passive: false
-  });
-  root.addEventListener("pointerdown", onPointerDown, {
-    capture: true,
-    passive: true
-  });
-  root.addEventListener("pointermove", blockEvent, {
-    capture: true,
-    passive: false
-  });
-  root.addEventListener("pointerup", onPointerUp, {
-    capture: true,
-    passive: true
-  });
-  root.addEventListener("pointercancel", onPointerUp, {
-    capture: true,
-    passive: true
-  });
-  root.addEventListener("scroll", restoreAllScrollPositions, {
-    capture: true,
-    passive: true
-  });
-  document.addEventListener("scroll", restoreAllScrollPositions, {
-    capture: true,
-    passive: true
-  });
+  function attachLockListeners() {
+    if (lockListenersAttached) {
+      return;
+    }
+
+    lockListenersAttached = true;
+    root.addEventListener("wheel", blockEvent, { capture: true, passive: false });
+    root.addEventListener("mousewheel", blockEvent, {
+      capture: true,
+      passive: false
+    });
+    root.addEventListener("DOMMouseScroll", blockEvent, {
+      capture: true,
+      passive: false
+    });
+    root.addEventListener("touchmove", blockEvent, {
+      capture: true,
+      passive: false
+    });
+    root.addEventListener("keydown", blockEvent, { capture: true });
+    root.addEventListener("mousedown", blockEvent, {
+      capture: true,
+      passive: false
+    });
+    root.addEventListener("auxclick", blockEvent, {
+      capture: true,
+      passive: false
+    });
+    root.addEventListener("pointerdown", onPointerDown, {
+      capture: true,
+      passive: true
+    });
+    root.addEventListener("pointermove", blockEvent, {
+      capture: true,
+      passive: false
+    });
+    root.addEventListener("pointerup", onPointerUp, {
+      capture: true,
+      passive: true
+    });
+    root.addEventListener("pointercancel", onPointerUp, {
+      capture: true,
+      passive: true
+    });
+    root.addEventListener("scroll", restoreAllScrollPositions, {
+      capture: true,
+      passive: true
+    });
+    document.addEventListener("scroll", restoreAllScrollPositions, {
+      capture: true,
+      passive: true
+    });
+  }
+
+  function detachLockListeners() {
+    if (!lockListenersAttached) {
+      return;
+    }
+
+    lockListenersAttached = false;
+    pointerStart = null;
+    root.removeEventListener("wheel", blockEvent, { capture: true });
+    root.removeEventListener("mousewheel", blockEvent, { capture: true });
+    root.removeEventListener("DOMMouseScroll", blockEvent, { capture: true });
+    root.removeEventListener("touchmove", blockEvent, { capture: true });
+    root.removeEventListener("keydown", blockEvent, { capture: true });
+    root.removeEventListener("mousedown", blockEvent, { capture: true });
+    root.removeEventListener("auxclick", blockEvent, { capture: true });
+    root.removeEventListener("pointerdown", onPointerDown, { capture: true });
+    root.removeEventListener("pointermove", blockEvent, { capture: true });
+    root.removeEventListener("pointerup", onPointerUp, { capture: true });
+    root.removeEventListener("pointercancel", onPointerUp, { capture: true });
+    root.removeEventListener("scroll", restoreAllScrollPositions, {
+      capture: true
+    });
+    document.removeEventListener("scroll", restoreAllScrollPositions, {
+      capture: true
+    });
+  }
+
+  if (root.navigation?.addEventListener) {
+    root.navigation.addEventListener("navigate", () => {
+      queueMicrotask(notifyLocationChange);
+    });
+  }
+
+  root.setInterval(notifyLocationChange, 500);
   root.addEventListener("popstate", notifyLocationChange);
   root.addEventListener("hashchange", notifyLocationChange);
 
@@ -1018,14 +1045,19 @@
         match: resolveCurrentMatch(),
         locked
       });
-      return true;
+      return false;
+    }
+
+    if (message.type === "anti-scroll-location-change") {
+      notifyLocationChange();
+      return false;
     }
 
     return false;
   });
 
+  requestMainLockToken();
   patchHistory();
-  applyState();
 
   storageGet(api.storage.sync, {
     [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS

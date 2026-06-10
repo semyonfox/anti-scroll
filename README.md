@@ -35,12 +35,16 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 - Uses three clear modes: off, selected sites, or all sites.
 - Lets you run blocking for a chosen number of minutes.
 - Supports a searchable list of social presets plus custom domains.
+- Lets you pause the current selected site for 15 minutes without turning the extension off.
 - Hides the feed area on known feed routes such as X home, Instagram/Reels, YouTube Shorts, TikTok, Reddit feeds, LinkedIn feed, Facebook watch/feed, and Threads.
+- Includes additional opt-in feed presets for Bluesky, Twitch, Substack, GitHub, and Hacker News.
+- Hides common feed entry points and recommendation surfaces such as Shorts/Reels links, suggested sidebars, recent posts, and end-screen recommendations where selectors are known.
 - Leaves normal scrolling alone on pages that are not shielded.
 - Uses narrow feed selectors and fails open if a page changes, instead of hiding the whole page by accident.
 - Allows typing fields by default.
 - Allows common DM/messaging pages by default.
 - Tracks blocked attempts locally only.
+- Research notes and source links for comparable extensions are in `RESEARCH.md`.
 
 ## Notes
 

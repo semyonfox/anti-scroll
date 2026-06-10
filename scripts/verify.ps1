@@ -7,6 +7,12 @@ try {
     Get-Content -Raw -LiteralPath $manifest | ConvertFrom-Json | Out-Null
   }
 
+  $rootManifest = Get-Content -Raw -LiteralPath "manifest.json" | ConvertFrom-Json | ConvertTo-Json -Depth 20 -Compress
+  $chromiumManifest = Get-Content -Raw -LiteralPath "manifest.chromium.json" | ConvertFrom-Json | ConvertTo-Json -Depth 20 -Compress
+  if ($rootManifest -ne $chromiumManifest) {
+    throw "manifest.json and manifest.chromium.json must stay semantically identical"
+  }
+
   node --check src/constants.js
   node --check src/page-lock.js
   node --check src/background.js

@@ -48,12 +48,41 @@
     {
       id: "threads",
       label: "Threads",
-      domains: ["threads.net"]
+      domains: ["threads.com", "threads.net"]
+    },
+    {
+      id: "bluesky",
+      label: "Bluesky",
+      domains: ["bsky.app"]
+    },
+    {
+      id: "twitch",
+      label: "Twitch",
+      domains: ["twitch.tv"],
+      defaultEnabled: false
+    },
+    {
+      id: "substack",
+      label: "Substack",
+      domains: ["substack.com"],
+      defaultEnabled: false
+    },
+    {
+      id: "github",
+      label: "GitHub",
+      domains: ["github.com"],
+      defaultEnabled: false
+    },
+    {
+      id: "hackernews",
+      label: "Hacker News",
+      domains: ["news.ycombinator.com"],
+      defaultEnabled: false
     }
   ];
 
   const DEFAULT_PRESET_STATE = Object.fromEntries(
-    PRESETS.map((preset) => [preset.id, true])
+    PRESETS.map((preset) => [preset.id, preset.defaultEnabled !== false])
   );
 
   const DEFAULT_SETTINGS = {
@@ -61,7 +90,6 @@
     enabled: true,
     activeUntil: null,
     lockPage: true,
-    showNotice: false,
     strictFeeds: true,
     allowEditableFields: true,
     allowMessagingPages: true,
@@ -76,12 +104,145 @@
     byDomain: {},
     lastAt: null
   };
+  const MAX_ANALYTICS_DOMAINS = 200;
 
   const MESSAGING_PATHS = {
     facebook: [/^\/messages(\/|$)/i, /^\/messages\/t(\/|$)/i],
     instagram: [/^\/direct(\/|$)/i],
     linkedin: [/^\/messaging(\/|$)/i],
     x: [/^\/messages(\/|$)/i, /^\/i\/chat(\/|$)/i]
+  };
+
+  const FEED_SELECTORS = {
+    reddit: [
+      "shreddit-feed",
+      "faceplate-batch",
+      "main#main-content",
+      "#subgrid-container",
+      "[data-testid='post-container']",
+      "shreddit-post",
+      "article:has(a[href*='/comments/'])",
+      "recent-posts",
+      "reddit-recent-pages",
+      "#right-sidebar-container"
+    ],
+    youtube: [
+      "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer #contents",
+      "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer",
+      "ytd-browse[page-subtype='subscriptions'] ytd-section-list-renderer #contents",
+      "ytd-shorts",
+      "shorts-carousel",
+      "ytd-search ytd-section-list-renderer",
+      "ytd-two-column-search-results-renderer",
+      "ytd-rich-shelf-renderer[is-shorts]",
+      "ytd-rich-shelf-renderer[is-shorts='']",
+      "ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts])",
+      "ytd-reel-shelf-renderer",
+      "ytd-video-renderer:has(a[href^='/shorts/'])",
+      "ytd-rich-item-renderer:has(a[href^='/shorts/'])",
+      "grid-shelf-view-model:has(a[href^='/shorts/'])",
+      "ytm-rich-section-renderer:has(a[href^='/shorts/'])",
+      "ytm-reel-shelf-renderer",
+      "ytd-guide-entry-renderer:has(a[title='Shorts'])",
+      "ytd-mini-guide-entry-renderer:has(a[title='Shorts'])",
+      "ytm-pivot-bar-item-renderer:has(.pivot-shorts)",
+      "#related",
+      ".ytp-ce-element",
+      ".html5-endscreen",
+      ".ytp-suggestion-set"
+    ],
+    instagram: [
+      "main article",
+      "main a[href^='/p/']",
+      "main a[href^='/reel/']",
+      "main div[role='presentation']:has(a[href^='/p/'])",
+      "main div[role='presentation']:has(a[href^='/reel/'])",
+      "main:has(a[href='/explore/people/'])",
+      "div:has(> div > a[href='/explore/people/'])",
+      "nav a[href='/reels/']",
+      "nav a[href='/explore/']"
+    ],
+    tiktok: [
+      "#main-content-homepage_hot",
+      "#main-content-homepage_follow",
+      "#main-content-explore_page",
+      "main [data-e2e='recommend-list-item-container']",
+      "main [data-e2e='feed-video']",
+      "main [data-e2e='browse-video-list']",
+      "main [data-e2e='user-post-item']",
+      "main div[class*='DivVideoFeed']",
+      "h2:has(button[aria-label='For You'])",
+      "h2:has(button[aria-label='Explore'])",
+      "h2:has(button[aria-label='Following'])",
+      ".TUXTooltip-reference:has(button[aria-label='For You'])",
+      ".TUXTooltip-reference:has(button[aria-label='Explore'])",
+      ".TUXTooltip-reference:has(button[aria-label='Following'])"
+    ],
+    x: [
+      "main[role='main'] div[data-testid='cellInnerDiv']",
+      "main[role='main'] article[data-testid='tweet']",
+      "main[role='main'] div[aria-label*='Timeline'] > div > div",
+      "main[role='main'] div[data-testid='primaryColumn'] section",
+      "div[data-testid='news_sidebar']",
+      "div[data-testid='sidebarColumn'] a[href^='/i/connect_people']",
+      "a[href='/explore/tabs/for-you']"
+    ],
+    facebook: [
+      "div[role='feed']",
+      "div[role='main'] div[role='article']",
+      "div[data-pagelet='MainFeed']",
+      "div[data-pagelet*='FeedUnit']",
+      "div[data-pagelet^='VideoHome']",
+      "[role='region'][aria-label='Reels']",
+      "[aria-label='Reels and short videos']",
+      "a[href*='/reel/']",
+      "a[href*='/reels/']",
+      "[aria-label='Stories']",
+      "[data-pagelet='Stories']"
+    ],
+    linkedin: [
+      "main .feed-shared-update-v2",
+      "div[data-testid='mainFeed']",
+      "div[componentkey*='mainFeed']",
+      "main div[data-view-tracking-scope*='FEED_UPDATE_SERVED'] > div",
+      "main .scaffold-finite-scroll__content > div",
+      ".feed-new-update-pill__new-update-button",
+      ".feed-shared-news-module",
+      ".feed-follows-module",
+      ".scaffold-finite-scroll__load-button",
+      ".feed-right-rail",
+      "#feed-right-rail-tooltip-outlet",
+      "[componentkey='newsAndGamesCard']",
+      "section:has(.games-entrypoints-module__subheader)"
+    ],
+    threads: [
+      "main [role='article']",
+      "main div[aria-label*='Timeline'] [role='article']",
+      "#barcelona-page-layout > div > div"
+    ],
+    bluesky: [
+      "div[data-testid='customFeedPage-feed']",
+      "div[data-testid='followingFeedPage']"
+    ],
+    twitch: [
+      "main:has(#front-page-main-content)",
+      "div.side-nav-section:has([data-test-selector='recommended-channel'])",
+      "div.side-nav-section:has(a[href^='/directory/category/'])",
+      "div.side-nav-section:has([data-test-selector='similarity-channel'])",
+      ".find-me",
+      ".tw-tower:has([data-test-selector='shelf-card-selector'])"
+    ],
+    substack: [
+      "div[aria-label='Notes feed']"
+    ],
+    github: [
+      "#dashboard",
+      "#feed",
+      "aside.feed-right-column"
+    ],
+    hackernews: [
+      "tr#bigbox td table"
+    ]
   };
 
   function normalizeHost(host) {
@@ -124,6 +285,10 @@
     return Array.from(new Set(domains.map(normalizeDomainInput).filter(Boolean)));
   }
 
+  function createRecord() {
+    return Object.create(null);
+  }
+
   function domainMatches(host, domain) {
     const normalizedHost = normalizeHost(host);
     const normalizedDomain = normalizeDomainInput(domain);
@@ -156,7 +321,7 @@
       }
     }
 
-    const pausedUntilByHost = {};
+    const pausedUntilByHost = createRecord();
     if (
       incoming.pausedUntilByHost &&
       typeof incoming.pausedUntilByHost === "object"
@@ -177,7 +342,6 @@
         typeof incoming.lockPage === "boolean"
           ? incoming.lockPage
           : DEFAULT_SETTINGS.lockPage,
-      showNotice: false,
       strictFeeds:
         typeof incoming.strictFeeds === "boolean"
           ? incoming.strictFeeds
@@ -198,8 +362,8 @@
 
   function sanitizeAnalytics(value) {
     const incoming = value && typeof value === "object" ? value : {};
-    const bySite = {};
-    const byDomain = {};
+    const bySite = createRecord();
+    const byDomain = createRecord();
 
     for (const siteKey of [
       ...PRESETS.map((preset) => preset.id),
@@ -365,6 +529,21 @@
           path === "/" ||
           isSingleSegmentPath(path, ["about", "privacy", "terms"])
         );
+
+      case "bluesky":
+        return path === "/";
+
+      case "twitch":
+        return path === "/" || /^\/directory\/following(\/|$)/.test(path);
+
+      case "substack":
+        return path === "/" || path === "/home";
+
+      case "github":
+        return path === "/" || path === "/feed";
+
+      case "hackernews":
+        return /^\/(news|front|newest|newcomments|ask|show)?$/.test(path);
 
       default:
         return false;
@@ -534,17 +713,38 @@
     return root.browser || root.chrome;
   }
 
+  function storageGet(area, defaults) {
+    return new Promise((resolve) => {
+      const result = area.get(defaults, resolve);
+      if (result?.then) {
+        result.then(resolve);
+      }
+    });
+  }
+
+  function storageSet(area, value) {
+    return new Promise((resolve) => {
+      const result = area.set(value, resolve);
+      if (result?.then) {
+        result.then(resolve);
+      }
+    });
+  }
+
   root.AntiScrollConfig = {
     SETTINGS_KEY,
     ANALYTICS_KEY,
     MODES,
     PRESETS,
+    FEED_SELECTORS,
     DEFAULT_SETTINGS,
     EMPTY_ANALYTICS,
+    MAX_ANALYTICS_DOMAINS,
     normalizeHost,
     normalizeDomainInput,
     parseDomainList,
     uniqueDomains,
+    createRecord,
     domainMatches,
     sanitizeSettings,
     sanitizeAnalytics,
@@ -553,6 +753,8 @@
     matchFeedShield,
     matchShield,
     matchUrl,
-    getApi
+    getApi,
+    storageGet,
+    storageSet
   };
 })(globalThis);

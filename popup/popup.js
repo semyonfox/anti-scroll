@@ -3,6 +3,7 @@
 
   const config = root.AntiScrollConfig;
   const api = config.getApi();
+  const PAUSE_MINUTES = 15;
 
   const state = {
     settings: config.DEFAULT_SETTINGS,
@@ -18,23 +19,7 @@
     return document.getElementById(id);
   }
 
-  function storageGet(area, defaults) {
-    return new Promise((resolve) => {
-      const result = area.get(defaults, resolve);
-      if (result?.then) {
-        result.then(resolve);
-      }
-    });
-  }
-
-  function storageSet(area, value) {
-    return new Promise((resolve) => {
-      const result = area.set(value, resolve);
-      if (result?.then) {
-        result.then(resolve);
-      }
-    });
-  }
+  const { storageGet, storageSet } = config;
 
   function sendMessage(message) {
     return new Promise((resolve) => {
@@ -52,6 +37,45 @@
         result.then(resolve);
       }
     });
+  }
+
+  function requestPermissions(permissions) {
+    if (!api.permissions?.request) {
+      return Promise.resolve(true);
+    }
+
+    return new Promise((resolve) => {
+      const result = api.permissions.request(permissions, resolve);
+      if (result?.then) {
+        result.then(resolve);
+      }
+    });
+  }
+
+  function originsForDomain(domain) {
+    const normalizedDomain = config.normalizeDomainInput(domain);
+    if (!normalizedDomain) {
+      return [];
+    }
+
+    return [
+      `http://${normalizedDomain}/*`,
+      `https://${normalizedDomain}/*`,
+      `http://*.${normalizedDomain}/*`,
+      `https://*.${normalizedDomain}/*`
+    ];
+  }
+
+  function allSiteOrigins() {
+    return ["http://*/*", "https://*/*"];
+  }
+
+  async function ensureHostPermission(origins) {
+    if (!origins.length) {
+      return true;
+    }
+
+    return requestPermissions({ origins });
   }
 
   async function getActiveTab() {
@@ -80,6 +104,12 @@
 
   function canUseCurrentHost() {
     return Boolean(currentHost() && state.tab?.url?.startsWith("http"));
+  }
+
+  function currentPausedUntil() {
+    const host = currentHost();
+    const until = host ? state.settings.pausedUntilByHost[host] : null;
+    return typeof until === "number" && until > Date.now() ? until : null;
   }
 
   function currentPreset() {
@@ -176,6 +206,13 @@
       return;
     }
 
+    if (match?.reason === "paused" && match.pausedUntil) {
+      elements.statusPill.textContent = "Paused";
+      elements.statusPill.classList.add("selected");
+      elements.currentStatus.textContent = `Paused until ${formatTime(match.pausedUntil)}`;
+      return;
+    }
+
     if (match?.active) {
       elements.statusPill.textContent =
         match.type === "all"
@@ -215,7 +252,9 @@
       elements.modeSelected,
       elements.modeAll
     ]) {
-      button.classList.toggle("active", button.dataset.mode === state.settings.mode);
+      const active = button.dataset.mode === state.settings.mode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
     }
   }
 
@@ -240,20 +279,39 @@
       : "Add Site";
   }
 
+  function renderPauseButton() {
+    const pausedUntil = currentPausedUntil();
+    const canPause =
+      canUseCurrentHost() &&
+      state.settings.mode !== config.MODES.DISABLED &&
+      (state.settings.mode === config.MODES.ALL || isCurrentSelected());
+
+    elements.pauseCurrent.disabled = !canPause;
+    elements.pauseCurrent.textContent = pausedUntil ? "Resume" : `${PAUSE_MINUTES}m Pause`;
+    elements.pauseCurrent.title = pausedUntil
+      ? `Resume ${currentHost()}`
+      : `Pause ${currentHost()} for ${PAUSE_MINUTES} minutes`;
+  }
+
   function createSiteRow(item) {
-    const row = document.createElement("label");
+    const row = document.createElement("div");
     const checkbox = document.createElement("input");
-    const text = document.createElement("span");
+    const text = document.createElement("label");
     const title = document.createElement("strong");
     const detail = document.createElement("small");
     const remove = document.createElement("button");
+    const checkboxId = `site-${item.type}-${item.id.replace(/[^a-z0-9_-]/gi, "-")}`;
 
     row.className = "site-row";
     row.setAttribute("role", "listitem");
     checkbox.type = "checkbox";
+    checkbox.id = checkboxId;
     checkbox.checked = item.selected;
     checkbox.dataset.itemType = item.type;
     checkbox.dataset.itemId = item.id;
+    checkbox.setAttribute("aria-label", `${item.selected ? "Disable" : "Enable"} ${item.label}`);
+    text.className = "site-label";
+    text.htmlFor = checkboxId;
     title.textContent = item.label;
     detail.textContent = item.detail;
     text.append(title, detail);
@@ -264,6 +322,7 @@
       remove.className = "plain remove";
       remove.textContent = "x";
       remove.title = `Remove ${item.label}`;
+      remove.setAttribute("aria-label", `Remove ${item.label}`);
       remove.dataset.removeDomain = item.id;
       row.append(remove);
     } else {
@@ -324,15 +383,24 @@
     renderModes();
     renderTimer();
     renderCurrentButton();
+    renderPauseButton();
     renderSiteList();
     renderOptions();
     renderStats();
   }
 
   async function setMode(event) {
+    const mode = event.currentTarget.dataset.mode;
+    if (
+      mode === config.MODES.ALL &&
+      !(await ensureHostPermission(allSiteOrigins()))
+    ) {
+      return;
+    }
+
     await saveSettings({
       ...state.settings,
-      mode: event.currentTarget.dataset.mode
+      mode
     });
   }
 
@@ -387,9 +455,34 @@
       return;
     }
 
+    if (!(await ensureHostPermission(originsForDomain(host)))) {
+      return;
+    }
+
     await saveSettings({
       ...state.settings,
       customDomains: config.uniqueDomains([...state.settings.customDomains, host])
+    });
+  }
+
+  async function togglePauseCurrentSite() {
+    const host = currentHost();
+    if (!host) {
+      return;
+    }
+
+    const pausedUntil = currentPausedUntil();
+    const pausedUntilByHost = { ...state.settings.pausedUntilByHost };
+
+    if (pausedUntil) {
+      delete pausedUntilByHost[host];
+    } else {
+      pausedUntilByHost[host] = Date.now() + PAUSE_MINUTES * 60 * 1000;
+    }
+
+    await saveSettings({
+      ...state.settings,
+      pausedUntilByHost
     });
   }
 
@@ -420,6 +513,10 @@
   }
 
   async function addCustomDomain(domain) {
+    if (!(await ensureHostPermission(originsForDomain(domain)))) {
+      return;
+    }
+
     await saveSettings({
       ...state.settings,
       customDomains: config.uniqueDomains([
@@ -515,6 +612,7 @@
       "clearTimer",
       "timerStatus",
       "currentStatus",
+      "pauseCurrent",
       "toggleCurrent",
       "siteSearch",
       "selectAll",
@@ -541,6 +639,7 @@
 
     elements.startTimer.addEventListener("click", startTimer);
     elements.clearTimer.addEventListener("click", clearTimer);
+    elements.pauseCurrent.addEventListener("click", togglePauseCurrentSite);
     elements.toggleCurrent.addEventListener("click", toggleCurrentSite);
     elements.siteSearch.addEventListener("input", () => {
       state.query = elements.siteSearch.value;
@@ -583,7 +682,11 @@
       render();
     });
 
-    setInterval(renderTimer, 15000);
+    setInterval(() => {
+      renderStatus();
+      renderTimer();
+      renderPauseButton();
+    }, 15000);
   }
 
   if (!api?.storage || !api?.tabs) {
