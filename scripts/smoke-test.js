@@ -263,4 +263,15 @@ if (!pageLockSource.includes("event.detail?.token !== token")) {
   throw new Error("page-lock should reject lock-state events without the token");
 }
 
+const contentSource = fs.readFileSync(
+  path.join(__dirname, "..", "src", "content.js"),
+  "utf8"
+);
+if (
+  !contentSource.includes('shieldMatch.type === "feed"') ||
+  !contentSource.includes("Array.from(surfaceTargets)")
+) {
+  throw new Error("feed shield media pausing should stay scoped to feed targets");
+}
+
 console.log("matching smoke ok");
