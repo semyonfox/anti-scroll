@@ -647,7 +647,29 @@
       return;
     }
 
-    for (const element of document.querySelectorAll("video, audio")) {
+    const mediaElements = new Set();
+
+    if (shieldMatch.type === "feed") {
+      for (const target of Array.from(surfaceTargets)) {
+        if (!(target instanceof Element) || !target.isConnected) {
+          continue;
+        }
+
+        if (target.matches("video, audio")) {
+          mediaElements.add(target);
+        }
+
+        for (const element of target.querySelectorAll("video, audio")) {
+          mediaElements.add(element);
+        }
+      }
+    } else {
+      for (const element of document.querySelectorAll("video, audio")) {
+        mediaElements.add(element);
+      }
+    }
+
+    for (const element of mediaElements) {
       try {
         element.pause();
         element.preload = "none";
