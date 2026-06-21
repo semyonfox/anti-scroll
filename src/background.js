@@ -312,25 +312,37 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return null;
     }
 
+    const senderHost = senderHttpHost(sender);
+    if (!senderHost) {
+      return null;
+    }
+
     const presetId =
       typeof message.presetId === "string" &&
       config.getPresetById(message.presetId)
         ? message.presetId
         : null;
-    if ((matchType === "preset" || matchType === "feed") && !presetId) {
-      return null;
+    if (matchType === "preset" || matchType === "feed") {
+      const preset = presetId ? config.getPresetById(presetId) : null;
+      if (
+        !preset ||
+        !preset.domains.some((domain) => config.domainMatches(senderHost, domain))
+      ) {
+        return null;
+      }
     }
 
-    const senderHost = senderHttpHost(sender);
-    const domain =
-      matchType === "all"
-        ? ""
-        : config.normalizeDomainInput(message.domain || message.host || senderHost);
+    const claimedDomain = config.normalizeDomainInput(
+      message.domain || message.host || senderHost
+    );
+    if (matchType === "custom" && !config.domainMatches(senderHost, claimedDomain)) {
+      return null;
+    }
 
     return {
       matchType,
       presetId,
-      domain
+      domain: matchType === "all" ? "" : claimedDomain
     };
   }
 

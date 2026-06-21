@@ -18,7 +18,9 @@ try {
   node --check src/background.js
   node --check src/content.js
   node --check popup/popup.js
+  node --check scripts/background-message-test.js
   node scripts/smoke-test.js
+  node scripts/background-message-test.js
 
   & $PSScriptRoot/build-extension.ps1 -Target chromium | Out-Host
   & $PSScriptRoot/build-extension.ps1 -Target firefox | Out-Host
