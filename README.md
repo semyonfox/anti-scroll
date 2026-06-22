@@ -45,6 +45,7 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 - Allows common DM/messaging pages by default.
 - Tracks blocked attempts locally only.
 - Research notes and source links for comparable extensions are in `RESEARCH.md`.
+- Selector update steps and review checklist are in `SELECTOR_MAINTENANCE.md`.
 
 ## Notes
 
