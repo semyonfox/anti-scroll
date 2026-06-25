@@ -66,6 +66,7 @@ if (hostileAnalytics.byDomain.constructor !== 1) {
 const cases = [
   [baseSettings, "https://www.reddit.com/r/all", true, "reddit"],
   [baseSettings, "https://x.com/home", true, "x"],
+  [baseSettings, "https://twitter.com/home", true, "x"],
   [
     baseSettings,
     "https://www.instagram.com/direct/inbox/",
@@ -128,6 +129,8 @@ const feedCases = [
   ["https://www.tiktok.com/@someone/video/123", false],
   ["https://x.com/home", true],
   ["https://x.com/messages", false],
+  ["https://twitter.com/home", true],
+  ["https://twitter.com/messages", false],
   ["https://www.linkedin.com/feed/", true],
   ["https://www.linkedin.com/messaging/", false],
   ["https://www.facebook.com/watch", true],
