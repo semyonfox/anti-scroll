@@ -77,6 +77,8 @@ const cases = [
   [baseSettings, "https://example.com/path", true, "custom"],
   [baseSettings, "https://bsky.app/", true, "bluesky"],
   [baseSettings, "https://www.threads.com/", true, "threads"],
+  [baseSettings, "https://m.youtube.com/shorts/abc123", true, "youtube"],
+  [baseSettings, "https://youtu.be/abc123", true, "youtube"],
   [baseSettings, "https://github.com/", false, "not-blocked"],
   [baseSettings, "https://openai.com/", false, "not-blocked"],
   [pausedSettings, "https://www.reddit.com/", false, "paused"],
@@ -122,6 +124,8 @@ const feedCases = [
   ["https://www.reddit.com/r/webdev/comments/abc/post/", false],
   ["https://www.youtube.com/", true],
   ["https://www.youtube.com/shorts/abc123", true],
+  ["https://m.youtube.com/shorts/abc123", true],
+  ["https://youtu.be/abc123", false],
   ["https://www.youtube.com/watch?v=abc123", false],
   ["https://www.instagram.com/", true],
   ["https://www.instagram.com/direct/inbox/", false],
@@ -149,6 +153,8 @@ const feedCases = [
 
 const shieldCases = [
   ["https://www.youtube.com/shorts/abc123", true, "feed"],
+  ["https://m.youtube.com/shorts/abc123", true, "feed"],
+  ["https://youtu.be/abc123", false, "not-feed-like"],
   ["https://www.youtube.com/watch?v=abc123", false, "not-feed-like"],
   ["https://www.linkedin.com/feed/", true, "feed"],
   ["https://www.linkedin.com/messaging/", false, "messaging-page"],
