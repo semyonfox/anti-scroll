@@ -87,9 +87,15 @@ function sendAttempt(message, senderUrl) {
   });
 }
 
+function setSettings(settings) {
+  storage.sync[config.SETTINGS_KEY] = config.sanitizeSettings(settings);
+}
+
 (async () => {
+  setSettings(config.DEFAULT_SETTINGS);
+
   const accepted = await sendAttempt(
-    { matchType: "preset", presetId: "x", domain: "x.com" },
+    { matchType: "feed", presetId: "x", domain: "x.com" },
     "https://x.com/home"
   );
   if (!accepted?.ok) {
@@ -97,7 +103,7 @@ function sendAttempt(message, senderUrl) {
   }
 
   const forgedPreset = await sendAttempt(
-    { matchType: "preset", presetId: "x", domain: "x.com" },
+    { matchType: "feed", presetId: "x", domain: "x.com" },
     "https://www.reddit.com/"
   );
   if (forgedPreset?.ok) {
@@ -113,11 +119,28 @@ function sendAttempt(message, senderUrl) {
   }
 
   const extensionSender = await sendAttempt(
-    { matchType: "preset", presetId: "x", domain: "x.com" },
+    { matchType: "feed", presetId: "x", domain: "x.com" },
     "chrome-extension://anti-scroll-test/popup/popup.html"
   );
   if (extensionSender?.ok) {
     throw new Error("expected non-http sender to be rejected");
+  }
+
+  const disabledSettings = {
+    ...config.DEFAULT_SETTINGS,
+    presets: {
+      ...config.DEFAULT_SETTINGS.presets,
+      x: false
+    }
+  };
+  setSettings(disabledSettings);
+
+  const stalePreset = await sendAttempt(
+    { matchType: "feed", presetId: "x", domain: "x.com" },
+    "https://x.com/home"
+  );
+  if (stalePreset?.ok) {
+    throw new Error("expected stale preset attempt to be rejected by current settings");
   }
 
   const analytics = config.sanitizeAnalytics(storage.local[config.ANALYTICS_KEY]);
