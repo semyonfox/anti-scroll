@@ -305,6 +305,19 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     }
   }
 
+  function senderHttpUrl(sender) {
+    const url = sender?.url || sender?.tab?.url || "";
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return "";
+      }
+      return parsed.href;
+    } catch {
+      return "";
+    }
+  }
+
   function validatedAttempt(message, sender) {
     const matchType =
       typeof message.matchType === "string" ? message.matchType : "";
@@ -312,8 +325,9 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return null;
     }
 
+    const senderUrl = senderHttpUrl(sender);
     const senderHost = senderHttpHost(sender);
-    if (!senderHost) {
+    if (!senderUrl || !senderHost) {
       return null;
     }
 
@@ -342,18 +356,46 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     return {
       matchType,
       presetId,
-      domain: matchType === "all" ? "" : claimedDomain
+      domain: matchType === "all" ? "" : claimedDomain,
+      senderUrl
+    };
+  }
+
+  function analyticsPayloadFromMatch(payload, match) {
+    if (!match?.active || match.type !== payload.matchType) {
+      return null;
+    }
+
+    if (payload.matchType === "preset" || payload.matchType === "feed") {
+      if (!payload.presetId || match.presetId !== payload.presetId) {
+        return null;
+      }
+    }
+
+    return {
+      matchType: match.type,
+      presetId: match.presetId || null,
+      domain: match.type === "all" ? "" : match.domain || match.host || payload.domain
     };
   }
 
   async function recordBlockedAttempt(payload) {
+    const settings = await getSettings();
+    const verifiedPayload = analyticsPayloadFromMatch(
+      payload,
+      config.matchShield(payload.senderUrl, settings)
+    );
+    if (!verifiedPayload) {
+      return null;
+    }
+
     const stored = await storageGet(api.storage.local, {
       [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
     });
     const analytics = freshAnalytics(stored[config.ANALYTICS_KEY]);
     const siteKey =
-      payload.matchType === "all" ? "all" : payload.presetId || "custom";
-    const domain = config.normalizeDomainInput(payload.domain);
+      verifiedPayload.matchType === "all" ? "all" : verifiedPayload.presetId || "custom";
+    const domain = config.normalizeDomainInput(verifiedPayload.domain);
 
     analytics.total += 1;
     analytics.lastAt = Date.now();
@@ -431,7 +473,13 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       }
 
       recordBlockedAttempt(payload)
-        .then((analytics) => sendResponse({ ok: true, analytics }))
+        .then((analytics) => {
+          if (!analytics) {
+            sendResponse({ ok: false, error: "Attempt no longer matches active settings" });
+            return;
+          }
+          sendResponse({ ok: true, analytics });
+        })
         .catch((error) => sendResponse({ ok: false, error: String(error) }));
       return true;
     }
