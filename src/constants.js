@@ -3,6 +3,7 @@
 
   const SETTINGS_KEY = "antiScrollSettings";
   const ANALYTICS_KEY = "antiScrollAnalytics";
+  const REGISTRATION_STATUS_KEY = "antiScrollRegistrationStatus";
   const MODES = {
     DISABLED: "disabled",
     SELECTED: "selected",
@@ -734,6 +735,7 @@
   root.AntiScrollConfig = {
     SETTINGS_KEY,
     ANALYTICS_KEY,
+    REGISTRATION_STATUS_KEY,
     MODES,
     PRESETS,
     FEED_SELECTORS,

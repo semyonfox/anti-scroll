@@ -8,6 +8,7 @@
   const state = {
     settings: config.DEFAULT_SETTINGS,
     analytics: config.EMPTY_ANALYTICS,
+    registrationStatus: { ok: true, missingOrigins: [], error: "" },
     tab: null,
     tabMatch: null,
     query: ""
@@ -68,6 +69,19 @@
 
   function allSiteOrigins() {
     return ["http://*/*", "https://*/*"];
+  }
+
+  function neededCurrentOrigins() {
+    if (state.settings.mode === config.MODES.ALL) {
+      return allSiteOrigins();
+    }
+
+    const host = currentHost();
+    if (!host || !isCurrentCustomSelected()) {
+      return [];
+    }
+
+    return originsForDomain(host);
   }
 
   async function ensureHostPermission(origins) {
@@ -200,6 +214,19 @@
       return;
     }
 
+    if (state.registrationStatus.missingOrigins.length) {
+      elements.statusPill.textContent = "Permission";
+      elements.statusPill.classList.add("selected");
+      elements.currentStatus.textContent = "Permission needed on this browser";
+      return;
+    }
+
+    if (state.registrationStatus.error) {
+      elements.statusPill.textContent = "Setup";
+      elements.currentStatus.textContent = "Blocking setup needs attention";
+      return;
+    }
+
     if (match?.reason === "timer-ended") {
       elements.statusPill.textContent = "Ended";
       elements.currentStatus.textContent = "Timer ended";
@@ -293,6 +320,12 @@
       : `Pause ${currentHost()} for ${PAUSE_MINUTES} minutes`;
   }
 
+  function renderPermissionButton() {
+    const missing = state.registrationStatus.missingOrigins;
+    elements.grantMissingPermission.hidden = !missing.length;
+    elements.grantMissingPermission.disabled = !missing.length;
+  }
+
   function createSiteRow(item) {
     const row = document.createElement("div");
     const checkbox = document.createElement("input");
@@ -384,6 +417,7 @@
     renderTimer();
     renderCurrentButton();
     renderPauseButton();
+    renderPermissionButton();
     renderSiteList();
     renderOptions();
     renderStats();
@@ -486,6 +520,18 @@
     });
   }
 
+  async function grantMissingPermission() {
+    const origins = state.registrationStatus.missingOrigins.length
+      ? state.registrationStatus.missingOrigins
+      : neededCurrentOrigins();
+    if (!(await ensureHostPermission(origins))) {
+      return;
+    }
+
+    state.registrationStatus = { ok: true, missingOrigins: [], error: "" };
+    await saveSettings(state.settings);
+  }
+
   async function toggleSite(event) {
     const checkbox = event.target.closest("input[type='checkbox']");
     if (!checkbox?.dataset.itemId) {
@@ -582,12 +628,19 @@
   }
 
   async function loadInitialState() {
-    const [storedSettings, storedAnalytics, tab] = await Promise.all([
+    const [storedSettings, storedAnalytics, storedStatus, tab] = await Promise.all([
       storageGet(api.storage.sync, {
         [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS
       }),
       storageGet(api.storage.local, {
         [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
+      }),
+      storageGet(api.storage.local, {
+        [config.REGISTRATION_STATUS_KEY]: {
+          ok: true,
+          missingOrigins: [],
+          error: ""
+        }
       }),
       getActiveTab()
     ]);
@@ -596,8 +649,21 @@
     state.analytics = config.sanitizeAnalytics(
       storedAnalytics[config.ANALYTICS_KEY]
     );
+    state.registrationStatus = sanitizeRegistrationStatus(
+      storedStatus[config.REGISTRATION_STATUS_KEY]
+    );
     state.tab = tab;
     render();
+  }
+
+  function sanitizeRegistrationStatus(status) {
+    return {
+      ok: status?.ok !== false,
+      missingOrigins: Array.isArray(status?.missingOrigins)
+        ? status.missingOrigins.filter((origin) => typeof origin === "string")
+        : [],
+      error: typeof status?.error === "string" ? status.error : ""
+    };
   }
 
   function bindElements() {
@@ -612,6 +678,7 @@
       "clearTimer",
       "timerStatus",
       "currentStatus",
+      "grantMissingPermission",
       "pauseCurrent",
       "toggleCurrent",
       "siteSearch",
@@ -639,6 +706,7 @@
 
     elements.startTimer.addEventListener("click", startTimer);
     elements.clearTimer.addEventListener("click", clearTimer);
+    elements.grantMissingPermission.addEventListener("click", grantMissingPermission);
     elements.pauseCurrent.addEventListener("click", togglePauseCurrentSite);
     elements.toggleCurrent.addEventListener("click", toggleCurrentSite);
     elements.siteSearch.addEventListener("input", () => {
@@ -672,14 +740,20 @@
     elements.resetStats.addEventListener("click", resetStats);
 
     api.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== "sync" || !changes[config.SETTINGS_KEY]) {
+      if (areaName === "sync" && changes[config.SETTINGS_KEY]) {
+        state.settings = config.sanitizeSettings(
+          changes[config.SETTINGS_KEY].newValue
+        );
+        render();
         return;
       }
 
-      state.settings = config.sanitizeSettings(
-        changes[config.SETTINGS_KEY].newValue
-      );
-      render();
+      if (areaName === "local" && changes[config.REGISTRATION_STATUS_KEY]) {
+        state.registrationStatus = sanitizeRegistrationStatus(
+          changes[config.REGISTRATION_STATUS_KEY].newValue
+        );
+        render();
+      }
     });
 
     setInterval(() => {

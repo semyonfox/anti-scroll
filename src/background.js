@@ -38,6 +38,19 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     });
   }
 
+  function permissionsContains(details) {
+    if (!api.permissions?.contains) {
+      return Promise.resolve(true);
+    }
+
+    return new Promise((resolve) => {
+      const result = api.permissions.contains(details, resolve);
+      if (result?.then) {
+        result.then(resolve);
+      }
+    });
+  }
+
   function alarmCreate(name, alarmInfo) {
     const result = api.alarms?.create?.(name, alarmInfo);
     return result?.then ? result : Promise.resolve();
@@ -82,6 +95,49 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     );
   }
 
+  function matchesByPermissionOrigin(matches) {
+    const grouped = new Map();
+
+    for (const match of matches) {
+      if (!grouped.has(match)) {
+        grouped.set(match, []);
+      }
+      grouped.get(match).push(match);
+    }
+
+    return grouped;
+  }
+
+  async function filterGrantedMatches(matches) {
+    const allowed = [];
+    const missing = [];
+
+    for (const [origin, originMatches] of matchesByPermissionOrigin(matches)) {
+      if (await permissionsContains({ origins: [origin] })) {
+        allowed.push(...originMatches);
+      } else {
+        missing.push(origin);
+      }
+    }
+
+    return { allowed, missing };
+  }
+
+  async function setRegistrationStatus(status) {
+    if (!api.storage?.local || !config.REGISTRATION_STATUS_KEY) {
+      return;
+    }
+
+    await storageSet(api.storage.local, {
+      [config.REGISTRATION_STATUS_KEY]: {
+        ok: status.missing.length === 0 && !status.error,
+        missingOrigins: status.missing,
+        error: status.error || "",
+        checkedAt: Date.now()
+      }
+    });
+  }
+
   async function unregisterDynamicContentScripts() {
     if (!api.scripting?.unregisterContentScripts) {
       return;
@@ -115,30 +171,43 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     await unregisterDynamicContentScripts();
 
     if (!matches.length) {
+      await setRegistrationStatus({ missing: [] });
       return;
     }
 
-    await registerContentScripts([
-      {
-        id: DYNAMIC_SCRIPT_IDS[0],
-        matches,
-        js: ["src/page-lock.js"],
-        runAt: "document_start",
-        allFrames: true,
-        matchAboutBlank: true,
-        matchOriginAsFallback: true,
-        world: "MAIN"
-      },
-      {
-        id: DYNAMIC_SCRIPT_IDS[1],
-        matches,
-        js: ["src/constants.js", "src/content.js"],
-        runAt: "document_start",
-        allFrames: true,
-        matchAboutBlank: true,
-        matchOriginAsFallback: true
-      }
-    ]);
+    const { allowed, missing } = await filterGrantedMatches(matches);
+    if (!allowed.length) {
+      await setRegistrationStatus({ missing });
+      return;
+    }
+
+    try {
+      await registerContentScripts([
+        {
+          id: DYNAMIC_SCRIPT_IDS[0],
+          matches: allowed,
+          js: ["src/page-lock.js"],
+          runAt: "document_start",
+          allFrames: true,
+          matchAboutBlank: true,
+          matchOriginAsFallback: true,
+          world: "MAIN"
+        },
+        {
+          id: DYNAMIC_SCRIPT_IDS[1],
+          matches: allowed,
+          js: ["src/constants.js", "src/content.js"],
+          runAt: "document_start",
+          allFrames: true,
+          matchAboutBlank: true,
+          matchOriginAsFallback: true
+        }
+      ]);
+      await setRegistrationStatus({ missing });
+    } catch (error) {
+      await setRegistrationStatus({ missing, error: String(error) });
+      throw error;
+    }
   }
 
   async function getSettings() {
@@ -440,7 +509,9 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     const settings = config.sanitizeSettings(changes[config.SETTINGS_KEY].newValue);
     updateBadge(settings);
     scheduleBadgeAlarm(settings);
-    syncDynamicContentScripts(settings).catch(() => {});
+    syncDynamicContentScripts(settings).catch((error) => {
+      setRegistrationStatus({ missing: [], error: String(error) }).catch(() => {});
+    });
   });
 
   ensureDefaults();
