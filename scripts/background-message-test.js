@@ -6,6 +6,9 @@ const storage = {
   local: Object.create(null)
 };
 let messageListener = null;
+let permissionDecisions = new Map();
+const registeredScripts = [];
+const storageChangeListeners = [];
 
 function storageArea(name) {
   return {
@@ -36,7 +39,19 @@ globalThis.chrome = {
   storage: {
     sync: storageArea("sync"),
     local: storageArea("local"),
-    onChanged: { addListener() {} }
+    onChanged: {
+      addListener(listener) {
+        storageChangeListeners.push(listener);
+      }
+    }
+  },
+  permissions: {
+    contains(details, callback) {
+      const granted = (details.origins || []).every(
+        (origin) => permissionDecisions.get(origin) !== false
+      );
+      callback?.(granted);
+    }
   },
   alarms: {
     create() {},
@@ -57,7 +72,8 @@ globalThis.chrome = {
     }
   },
   scripting: {
-    registerContentScripts() {
+    registerContentScripts(details) {
+      registeredScripts.push(details);
       return Promise.resolve();
     },
     unregisterContentScripts() {
@@ -88,7 +104,12 @@ function sendAttempt(message, senderUrl) {
 }
 
 function setSettings(settings) {
-  storage.sync[config.SETTINGS_KEY] = config.sanitizeSettings(settings);
+  const oldValue = storage.sync[config.SETTINGS_KEY];
+  const newValue = config.sanitizeSettings(settings);
+  storage.sync[config.SETTINGS_KEY] = newValue;
+  for (const listener of storageChangeListeners) {
+    listener({ [config.SETTINGS_KEY]: { oldValue, newValue } }, "sync");
+  }
 }
 
 (async () => {
@@ -150,6 +171,35 @@ function setSettings(settings) {
     analytics.byDomain["x.com"] !== 1
   ) {
     throw new Error("analytics should include only the validated sender attempt");
+  }
+
+  permissionDecisions = new Map([
+    ["http://allowed.example/*", true],
+    ["https://allowed.example/*", true],
+    ["http://*.allowed.example/*", true],
+    ["https://*.allowed.example/*", true],
+    ["http://blocked.example/*", false],
+    ["https://blocked.example/*", false],
+    ["http://*.blocked.example/*", false],
+    ["https://*.blocked.example/*", false]
+  ]);
+  registeredScripts.length = 0;
+  setSettings({
+    ...config.DEFAULT_SETTINGS,
+    customDomains: ["allowed.example", "blocked.example"]
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const firstRegistration = registeredScripts[0];
+  if (!firstRegistration?.[0]?.matches.includes("https://allowed.example/*")) {
+    throw new Error("expected granted custom domain to stay registered");
+  }
+  if (firstRegistration[0].matches.some((match) => match.includes("blocked.example"))) {
+    throw new Error("expected ungranted custom domain matches to be filtered");
+  }
+  const status = storage.local[config.REGISTRATION_STATUS_KEY];
+  if (!status?.missingOrigins.includes("https://blocked.example/*")) {
+    throw new Error("expected missing optional permissions to be stored locally");
   }
 
   console.log("background message validation ok");
