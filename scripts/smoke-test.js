@@ -268,14 +268,26 @@ const pageLockSource = fs.readFileSync(
   path.join(__dirname, "..", "src", "page-lock.js"),
   "utf8"
 );
-if (!pageLockSource.includes("event.detail?.token !== token")) {
+if (!pageLockSource.includes("stateEvent.detail?.token !== token")) {
   throw new Error("page-lock should reject lock-state events without the token");
+}
+if (
+  !pageLockSource.includes('STATE_EVENT_PREFIX = "anti-scroll-main-lock-state:"') ||
+  pageLockSource.includes('const STATE_EVENT_NAME = "anti-scroll-main-lock-state"')
+) {
+  throw new Error("page-lock should use a per-document state event name");
 }
 
 const contentSource = fs.readFileSync(
   path.join(__dirname, "..", "src", "content.js"),
   "utf8"
 );
+if (
+  !contentSource.includes("createMainLockChannelId") ||
+  !contentSource.includes("mainLockStateEvent")
+) {
+  throw new Error("content script should randomize main-lock bridge event names");
+}
 if (
   !contentSource.includes('shieldMatch.type === "feed"') ||
   !contentSource.includes("Array.from(surfaceTargets)")

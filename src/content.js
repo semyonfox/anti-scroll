@@ -9,8 +9,8 @@
   }
 
   const MAIN_LOCK_TOKEN_REQUEST_EVENT = "anti-scroll-main-lock-token-request";
-  const MAIN_LOCK_TOKEN_RESPONSE_EVENT = "anti-scroll-main-lock-token-response";
-  const MAIN_LOCK_STATE_EVENT = "anti-scroll-main-lock-state";
+  const MAIN_LOCK_TOKEN_RESPONSE_PREFIX = "anti-scroll-main-lock-token-response:";
+  const MAIN_LOCK_STATE_PREFIX = "anti-scroll-main-lock-state:";
   const SCROLLABLE_OVERFLOW = /^(auto|scroll|overlay)$/;
   const MAX_SCAN_COUNT = 900;
   const SCROLL_KEYS = new Set([
@@ -41,6 +41,7 @@
   let surfaceTimer = null;
   let pointerStart = null;
   let mainLockToken = null;
+  let mainLockStateEvent = null;
   let lockListenersAttached = false;
   let lastSeenHref = location.href;
 
@@ -172,33 +173,51 @@
   }
 
   function requestMainLockToken() {
+    const channelId = createMainLockChannelId();
+    const responseEventName = `${MAIN_LOCK_TOKEN_RESPONSE_PREFIX}${channelId}`;
+    const stateEventName = `${MAIN_LOCK_STATE_PREFIX}${channelId}`;
     const onTokenResponse = (event) => {
       const token = event.detail?.token;
       if (typeof token === "string" && token) {
         mainLockToken = token;
+        mainLockStateEvent = stateEventName;
       }
     };
 
     try {
-      document.addEventListener(MAIN_LOCK_TOKEN_RESPONSE_EVENT, onTokenResponse, {
+      document.addEventListener(responseEventName, onTokenResponse, {
         once: true
       });
-      document.dispatchEvent(new CustomEvent(MAIN_LOCK_TOKEN_REQUEST_EVENT));
+      document.dispatchEvent(
+        new CustomEvent(MAIN_LOCK_TOKEN_REQUEST_EVENT, {
+          detail: { responseEventName, stateEventName }
+        })
+      );
     } catch {
-      document.removeEventListener(MAIN_LOCK_TOKEN_RESPONSE_EVENT, onTokenResponse);
+      document.removeEventListener(responseEventName, onTokenResponse);
+    }
+  }
+
+  function createMainLockChannelId() {
+    const bytes = new Uint32Array(4);
+    try {
+      root.crypto.getRandomValues(bytes);
+      return Array.from(bytes, (value) => value.toString(36)).join("-");
+    } catch {
+      return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     }
   }
 
   function dispatchMainLockState() {
     syncLockAttribute();
 
-    if (!mainLockToken) {
+    if (!mainLockToken || !mainLockStateEvent) {
       return;
     }
 
     try {
       document.dispatchEvent(
-        new CustomEvent(MAIN_LOCK_STATE_EVENT, {
+        new CustomEvent(mainLockStateEvent, {
           detail: { locked, token: mainLockToken }
         })
       );

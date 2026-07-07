@@ -2,11 +2,12 @@
   "use strict";
 
   const REQUEST_EVENT_NAME = "anti-scroll-main-lock-token-request";
-  const RESPONSE_EVENT_NAME = "anti-scroll-main-lock-token-response";
-  const STATE_EVENT_NAME = "anti-scroll-main-lock-state";
+  const RESPONSE_EVENT_PREFIX = "anti-scroll-main-lock-token-response:";
+  const STATE_EVENT_PREFIX = "anti-scroll-main-lock-state:";
   const state = {
     locked: false,
-    tokenIssued: false
+    channelClaimed: false,
+    stateEventName: null
   };
   const token = createToken();
 
@@ -84,25 +85,44 @@
     });
   }
 
-  root.document?.addEventListener(REQUEST_EVENT_NAME, () => {
-    if (state.tokenIssued) {
+  function isValidChannelEventName(name, prefix) {
+    return (
+      typeof name === "string" &&
+      name.startsWith(prefix) &&
+      name.length > prefix.length
+    );
+  }
+
+  root.document?.addEventListener(REQUEST_EVENT_NAME, (event) => {
+    if (state.channelClaimed) {
       return;
     }
 
-    state.tokenIssued = true;
+    const responseEventName = event.detail?.responseEventName;
+    const stateEventName = event.detail?.stateEventName;
+    if (
+      !isValidChannelEventName(responseEventName, RESPONSE_EVENT_PREFIX) ||
+      !isValidChannelEventName(stateEventName, STATE_EVENT_PREFIX)
+    ) {
+      return;
+    }
+
+    state.channelClaimed = true;
+    state.stateEventName = stateEventName;
+
+    root.document.addEventListener(stateEventName, (stateEvent) => {
+      if (stateEvent.detail?.token !== token) {
+        return;
+      }
+
+      state.locked = Boolean(stateEvent.detail.locked);
+    });
+
     root.document.dispatchEvent(
-      new CustomEvent(RESPONSE_EVENT_NAME, {
+      new CustomEvent(responseEventName, {
         detail: { token }
       })
     );
-  });
-
-  root.document?.addEventListener(STATE_EVENT_NAME, (event) => {
-    if (event.detail?.token !== token) {
-      return;
-    }
-
-    state.locked = Boolean(event.detail.locked);
   });
 
   syncLockedFromAttribute();
