@@ -191,8 +191,11 @@ function setSettings(settings) {
 
   await new Promise((resolve) => setTimeout(resolve, 0));
   const firstRegistration = registeredScripts[0];
-  if (!firstRegistration?.[0]?.matches.includes("https://allowed.example/*")) {
-    throw new Error("expected granted custom domain to stay registered");
+  if (
+    !firstRegistration?.[0]?.matches.includes("http://allowed.example/*") ||
+    !firstRegistration[0].matches.includes("https://allowed.example/*")
+  ) {
+    throw new Error("expected granted HTTP and HTTPS custom domain matches to stay registered");
   }
   if (firstRegistration[0].matches.some((match) => match.includes("blocked.example"))) {
     throw new Error("expected ungranted custom domain matches to be filtered");
