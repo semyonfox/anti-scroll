@@ -35,6 +35,7 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 - Uses three clear modes: off, selected sites, or all sites.
 - Lets you run blocking for a chosen number of minutes.
 - Supports a searchable list of social presets plus custom domains.
+- Uses HTTPS-only static access for presets; custom domains and all-sites mode request optional HTTP/HTTPS access when enabled.
 - Lets you pause the current selected site for 15 minutes without turning the extension off.
 - Hides the feed area on known feed routes such as X home, Instagram/Reels, YouTube Shorts, TikTok, Reddit feeds, LinkedIn feed, Facebook watch/feed, and Threads.
 - Includes additional opt-in feed presets for Bluesky, Twitch, Substack, GitHub, and Hacker News.

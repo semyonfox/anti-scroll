@@ -247,14 +247,23 @@ for (const manifestName of [
   if (scriptMatches.includes("http://*/*") || scriptMatches.includes("https://*/*")) {
     throw new Error(`${manifestName}: content scripts should not match all sites`);
   }
+  if (scriptMatches.some((match) => !match.startsWith("https://"))) {
+    throw new Error(`${manifestName}: static content-script matches should be HTTPS-only`);
+  }
+  if (manifest.host_permissions.some((permission) => !permission.startsWith("https://"))) {
+    throw new Error(`${manifestName}: static host permissions should be HTTPS-only`);
+  }
   if (manifest.host_permissions.includes("http://*/*")) {
     throw new Error(`${manifestName}: http all-sites host permission should be optional`);
   }
   if (manifest.host_permissions.includes("https://*/*")) {
     throw new Error(`${manifestName}: https all-sites host permission should be optional`);
   }
-  if (!manifest.optional_host_permissions?.includes("https://*/*")) {
-    throw new Error(`${manifestName}: all-sites permission should be optional`);
+  if (
+    !manifest.optional_host_permissions?.includes("http://*/*") ||
+    !manifest.optional_host_permissions.includes("https://*/*")
+  ) {
+    throw new Error(`${manifestName}: HTTP and HTTPS all-sites permissions should remain optional`);
   }
   if (manifest.permissions.includes("tabs")) {
     throw new Error(`${manifestName}: tabs permission should be replaced by activeTab`);
