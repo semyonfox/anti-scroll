@@ -406,8 +406,85 @@
     elements.allowMessagingPages.checked = state.settings.allowMessagingPages;
   }
 
+  function analyticsEntries(counts, labelForKey) {
+    return Object.entries(counts)
+      .map(([key, count]) => ({ key, count, label: labelForKey(key) }))
+      .sort((left, right) =>
+        right.count - left.count || left.label.localeCompare(right.label)
+      );
+  }
+
+  function siteLabel(site) {
+    if (site === "custom") {
+      return "Custom sites";
+    }
+    if (site === "all") {
+      return "All sites";
+    }
+    return config.getPresetById(site)?.label || site;
+  }
+
+  function formatLastActivity(timestamp) {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) {
+      return "No blocked activity yet";
+    }
+
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime())
+      ? "No blocked activity yet"
+      : `Last blocked ${date.toLocaleString()}`;
+  }
+
+  function appendAnalyticsGroup(fragment, label, entries) {
+    const group = document.createElement("section");
+    const heading = document.createElement("h3");
+    const list = document.createElement("div");
+
+    group.className = "analytics-group";
+    heading.textContent = label;
+    list.className = "analytics-list";
+    list.setAttribute("role", "list");
+
+    for (const entry of entries) {
+      const row = document.createElement("div");
+      const name = document.createElement("span");
+      const count = document.createElement("strong");
+
+      row.className = "analytics-row";
+      row.setAttribute("role", "listitem");
+      name.textContent = entry.label;
+      count.textContent = entry.count.toLocaleString();
+      row.append(name, count);
+      list.append(row);
+    }
+
+    group.append(heading, list);
+    fragment.append(group);
+  }
+
   function renderStats() {
     elements.attemptTotal.textContent = `${state.analytics.total.toLocaleString()} blocked`;
+    elements.analyticsLastAt.textContent = formatLastActivity(state.analytics.lastAt);
+
+    const siteEntries = analyticsEntries(state.analytics.bySite, siteLabel);
+    const domainEntries = analyticsEntries(state.analytics.byDomain, (domain) => domain);
+    const fragment = document.createDocumentFragment();
+
+    if (!siteEntries.length && !domainEntries.length) {
+      const empty = document.createElement("p");
+      empty.className = "analytics-empty";
+      empty.textContent = "No site activity yet.";
+      fragment.append(empty);
+    } else {
+      if (siteEntries.length) {
+        appendAnalyticsGroup(fragment, "By site", siteEntries);
+      }
+      if (domainEntries.length) {
+        appendAnalyticsGroup(fragment, "By domain", domainEntries);
+      }
+    }
+
+    elements.analyticsBreakdown.replaceChildren(fragment);
   }
 
   function render() {
@@ -688,6 +765,8 @@
       "strictFeeds",
       "allowEditableFields",
       "allowMessagingPages",
+      "analyticsLastAt",
+      "analyticsBreakdown",
       "attemptTotal",
       "resetStats"
     ]) {
@@ -753,6 +832,13 @@
           changes[config.REGISTRATION_STATUS_KEY].newValue
         );
         render();
+      }
+
+      if (areaName === "local" && changes[config.ANALYTICS_KEY]) {
+        state.analytics = config.sanitizeAnalytics(
+          changes[config.ANALYTICS_KEY].newValue
+        );
+        renderStats();
       }
     });
 
