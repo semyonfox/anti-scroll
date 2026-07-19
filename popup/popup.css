@@ -427,6 +427,78 @@ h1 {
   cursor: pointer;
 }
 
+.analytics {
+  overflow: hidden;
+}
+
+.analytics-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.analytics-head h2,
+.analytics-group h3 {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.analytics-last-at {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analytics-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.analytics-group + .analytics-group {
+  border-left: 1px solid var(--line-soft);
+}
+
+.analytics-group h3 {
+  padding: 7px 10px 3px;
+}
+
+.analytics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 3px 10px;
+}
+
+.analytics-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analytics-row strong {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-empty {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .footer {
   display: flex;
   align-items: center;

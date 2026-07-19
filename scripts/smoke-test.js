@@ -304,4 +304,29 @@ if (
   throw new Error("feed shield media pausing should stay scoped to feed targets");
 }
 
+const popupHtml = fs.readFileSync(
+  path.join(__dirname, "..", "popup", "popup.html"),
+  "utf8"
+);
+const popupSource = fs.readFileSync(
+  path.join(__dirname, "..", "popup", "popup.js"),
+  "utf8"
+);
+for (const requiredMarkup of ["analyticsLastAt", "analyticsBreakdown"]) {
+  if (!popupHtml.includes(requiredMarkup)) {
+    throw new Error(`popup analytics markup missing ${requiredMarkup}`);
+  }
+}
+for (const requiredBehavior of [
+  "function formatLastActivity",
+  "function appendAnalyticsGroup",
+  "No site activity yet.",
+  "changes[config.ANALYTICS_KEY]",
+  "renderStats();"
+]) {
+  if (!popupSource.includes(requiredBehavior)) {
+    throw new Error(`popup analytics behavior missing ${requiredBehavior}`);
+  }
+}
+
 console.log("matching smoke ok");
