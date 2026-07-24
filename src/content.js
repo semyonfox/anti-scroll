@@ -39,6 +39,7 @@
   let mutationObserver = null;
   let surfaceObserver = null;
   let surfaceTimer = null;
+  const pendingSurfaceRoots = new Set();
   let pointerStart = null;
   let mainLockToken = null;
   let mainLockStateEvent = null;
@@ -474,14 +475,28 @@
     }
   }
 
-  function scheduleSurfaceRefresh() {
-    if (!shieldMatch?.active || shieldMatch.type !== "feed" || surfaceTimer) {
+  function scheduleSurfaceRefresh(records) {
+    if (!shieldMatch?.active || shieldMatch.type !== "feed") {
+      return;
+    }
+
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (node instanceof Element) {
+          pendingSurfaceRoots.add(node);
+        }
+      }
+    }
+
+    if (surfaceTimer) {
       return;
     }
 
     surfaceTimer = setTimeout(() => {
       surfaceTimer = null;
-      applyFeedSurfaceShield();
+      const addedRoots = Array.from(pendingSurfaceRoots);
+      pendingSurfaceRoots.clear();
+      refreshFeedTargets(addedRoots);
     }, 120);
   }
 
@@ -503,6 +518,7 @@
     surfaceObserver = null;
     clearTimeout(surfaceTimer);
     surfaceTimer = null;
+    pendingSurfaceRoots.clear();
   }
 
   function clearFeedTargets() {
@@ -544,6 +560,62 @@
     }
 
     return targets.slice(0, 80);
+  }
+
+  function isFeedTarget(element) {
+    return (
+      element instanceof HTMLElement &&
+      element.id !== "anti-scroll-feed-placeholder" &&
+      !element.closest("#anti-scroll-feed-placeholder")
+    );
+  }
+
+  function getFeedTargetsWithin(root) {
+    const selectors = FEED_SELECTORS[shieldMatch?.presetId] || [];
+    const targets = [];
+
+    for (const selector of selectors) {
+      try {
+        if (root.matches(selector) && isFeedTarget(root)) {
+          targets.push(root);
+        }
+        for (const element of root.querySelectorAll(selector)) {
+          if (isFeedTarget(element)) {
+            targets.push(element);
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return targets;
+  }
+
+  function refreshFeedTargets(addedRoots) {
+    if (!shieldMatch?.active || shieldMatch.type !== "feed") {
+      return;
+    }
+
+    for (const target of Array.from(surfaceTargets)) {
+      if (!target.isConnected) {
+        surfaceTargets.delete(target);
+      }
+    }
+
+    for (const root of addedRoots) {
+      for (const target of getFeedTargetsWithin(root)) {
+        if (surfaceTargets.size >= 80) {
+          break;
+        }
+        target.dataset.antiScrollFeedTarget = "true";
+        surfaceTargets.add(target);
+      }
+    }
+
+    const targets = Array.from(surfaceTargets);
+    insertFeedPlaceholder(targets);
+    pauseMediaOnShield();
   }
 
   function targetInsertionParent(target) {

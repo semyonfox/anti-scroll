@@ -303,6 +303,20 @@ if (
 ) {
   throw new Error("feed shield media pausing should stay scoped to feed targets");
 }
+if (
+  !contentSource.includes("function refreshFeedTargets(addedRoots)") ||
+  !contentSource.includes("getFeedTargetsWithin(root)") ||
+  !contentSource.includes("pendingSurfaceRoots") ||
+  contentSource.includes("applyFeedSurfaceShield();\n    }, 120);")
+) {
+  throw new Error("feed surface mutations should use coalesced subtree refreshes, not full rescans");
+}
+if (
+  !contentSource.includes("dataset.antiScrollFeedSurface") ||
+  !contentSource.includes("dataset.antiScrollFeedTarget")
+) {
+  throw new Error("feed selector CSS markers should remain enabled for dynamic content");
+}
 
 const popupHtml = fs.readFileSync(
   path.join(__dirname, "..", "popup", "popup.html"),
