@@ -7,6 +7,8 @@ const storage = {
 };
 let messageListener = null;
 let permissionDecisions = new Map();
+let permissionRemovals = [];
+let removeShouldFail = false;
 const registeredScripts = [];
 const storageChangeListeners = [];
 
@@ -51,6 +53,14 @@ globalThis.chrome = {
         (origin) => permissionDecisions.get(origin) !== false
       );
       callback?.(granted);
+    },
+    remove(details, callback) {
+      permissionRemovals.push(details);
+      if (removeShouldFail) {
+        return Promise.reject(new Error("permission removal failed"));
+      }
+      callback?.(true);
+      return Promise.resolve(true);
     }
   },
   alarms: {
@@ -203,6 +213,60 @@ function setSettings(settings) {
   const status = storage.local[config.REGISTRATION_STATUS_KEY];
   if (!status?.missingOrigins.includes("https://blocked.example/*")) {
     throw new Error("expected missing optional permissions to be stored locally");
+  }
+
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  permissionRemovals = [];
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.ALL });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (
+    permissionRemovals.length !== 1 ||
+    permissionRemovals[0].origins.join(",") !== "http://*/*,https://*/*"
+  ) {
+    throw new Error("expected disabling all-sites mode to revoke only optional all-sites origins");
+  }
+
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  permissionRemovals = [];
+  setSettings({ ...config.DEFAULT_SETTINGS, customDomains: ["keep.example", "remove.example"] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  setSettings({ ...config.DEFAULT_SETTINGS, customDomains: ["keep.example"] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const removedCustomOrigins = permissionRemovals[0]?.origins || [];
+  if (
+    removedCustomOrigins.length !== 4 ||
+    removedCustomOrigins.some((origin) => !origin.includes("remove.example"))
+  ) {
+    throw new Error("expected only removed custom-domain optional origins to be revoked");
+  }
+
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  permissionRemovals = [];
+  setSettings({ ...config.DEFAULT_SETTINGS, customDomains: ["keep.example", "retain.example"] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  setSettings({ ...config.DEFAULT_SETTINGS, customDomains: ["retain.example"] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (permissionRemovals[0]?.origins.some((origin) => origin.includes("retain.example"))) {
+    throw new Error("expected still-required custom-domain origins to be retained");
+  }
+
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  permissionRemovals = [];
+  removeShouldFail = true;
+  registeredScripts.length = 0;
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.ALL });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  removeShouldFail = false;
+  if (!permissionRemovals.length || !registeredScripts.length) {
+    throw new Error("expected a removal failure not to block dynamic-script synchronization");
   }
 
   console.log("background message validation ok");
