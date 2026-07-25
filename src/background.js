@@ -51,6 +51,31 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     });
   }
 
+  function permissionsRemove(details) {
+    if (!api.permissions?.remove) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+
+      try {
+        const result = api.permissions.remove(details, finish);
+        if (result?.then) {
+          result.then(finish, reject);
+        }
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   function alarmCreate(name, alarmInfo) {
     const result = api.alarms?.create?.(name, alarmInfo);
     return result?.then ? result : Promise.resolve();
@@ -93,6 +118,19 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     return Array.from(
       new Set(settings.customDomains.flatMap((domain) => domainToMatches(domain)))
     );
+  }
+
+  async function removeNoLongerNeededPermissions(previousSettings, nextSettings) {
+    const nextOrigins = new Set(dynamicMatches(nextSettings));
+    const removedOrigins = dynamicMatches(previousSettings).filter(
+      (origin) => !nextOrigins.has(origin)
+    );
+
+    if (!removedOrigins.length) {
+      return false;
+    }
+
+    return permissionsRemove({ origins: removedOrigins });
   }
 
   function matchesByPermissionOrigin(matches) {
@@ -506,9 +544,13 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return;
     }
 
+    const previousSettings = config.sanitizeSettings(changes[config.SETTINGS_KEY].oldValue);
     const settings = config.sanitizeSettings(changes[config.SETTINGS_KEY].newValue);
     updateBadge(settings);
     scheduleBadgeAlarm(settings);
+    removeNoLongerNeededPermissions(previousSettings, settings).catch((error) => {
+      console.warn("Could not remove no-longer-needed optional host permissions", error);
+    });
     syncDynamicContentScripts(settings).catch((error) => {
       setRegistrationStatus({ missing: [], error: String(error) }).catch(() => {});
     });
