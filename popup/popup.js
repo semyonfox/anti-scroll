@@ -8,7 +8,7 @@
   const state = {
     settings: config.DEFAULT_SETTINGS,
     analytics: config.EMPTY_ANALYTICS,
-    registrationStatus: { ok: true, missingOrigins: [], error: "" },
+    registrationStatus: { missingOrigins: [], error: "" },
     tab: null,
     tabMatch: null,
     query: ""
@@ -53,27 +53,9 @@
     });
   }
 
-  function originsForDomain(domain) {
-    const normalizedDomain = config.normalizeDomainInput(domain);
-    if (!normalizedDomain) {
-      return [];
-    }
-
-    return [
-      `http://${normalizedDomain}/*`,
-      `https://${normalizedDomain}/*`,
-      `http://*.${normalizedDomain}/*`,
-      `https://*.${normalizedDomain}/*`
-    ];
-  }
-
-  function allSiteOrigins() {
-    return ["http://*/*", "https://*/*"];
-  }
-
   function neededCurrentOrigins() {
     if (state.settings.mode === config.MODES.ALL) {
-      return allSiteOrigins();
+      return config.ALL_SITE_MATCH_PATTERNS;
     }
 
     const host = currentHost();
@@ -81,7 +63,7 @@
       return [];
     }
 
-    return originsForDomain(host);
+    return config.getDomainMatchPatterns(host);
   }
 
   async function ensureHostPermission(origins) {
@@ -504,7 +486,7 @@
     const mode = event.currentTarget.dataset.mode;
     if (
       mode === config.MODES.ALL &&
-      !(await ensureHostPermission(allSiteOrigins()))
+      !(await ensureHostPermission(config.ALL_SITE_MATCH_PATTERNS))
     ) {
       return;
     }
@@ -566,7 +548,7 @@
       return;
     }
 
-    if (!(await ensureHostPermission(originsForDomain(host)))) {
+    if (!(await ensureHostPermission(config.getDomainMatchPatterns(host)))) {
       return;
     }
 
@@ -605,8 +587,7 @@
       return;
     }
 
-    state.registrationStatus = { ok: true, missingOrigins: [], error: "" };
-    await saveSettings(state.settings);
+    await sendMessage({ type: "anti-scroll-sync-content-scripts" });
   }
 
   async function toggleSite(event) {
@@ -636,7 +617,7 @@
   }
 
   async function addCustomDomain(domain) {
-    if (!(await ensureHostPermission(originsForDomain(domain)))) {
+    if (!(await ensureHostPermission(config.getDomainMatchPatterns(domain)))) {
       return;
     }
 
@@ -714,7 +695,6 @@
       }),
       storageGet(api.storage.local, {
         [config.REGISTRATION_STATUS_KEY]: {
-          ok: true,
           missingOrigins: [],
           error: ""
         }
@@ -735,7 +715,6 @@
 
   function sanitizeRegistrationStatus(status) {
     return {
-      ok: status?.ok !== false,
       missingOrigins: Array.isArray(status?.missingOrigins)
         ? status.missingOrigins.filter((origin) => typeof origin === "string")
         : [],

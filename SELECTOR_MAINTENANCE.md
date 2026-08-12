@@ -32,6 +32,7 @@ node --check src/background.js
 node --check src/content.js
 node --check popup/popup.js
 node scripts/smoke-test.js
+node scripts/background-message-test.js
 python3 -m json.tool manifest.json >/dev/null
 python3 -m json.tool manifest.chromium.json >/dev/null
 python3 -m json.tool manifest.firefox.json >/dev/null

@@ -19,6 +19,18 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
   }
 
   const { storageGet, storageSet } = config;
+  const enqueueReconciliation = createSerialQueue();
+  const enqueueAnalyticsMutation = createSerialQueue();
+
+  function createSerialQueue() {
+    let tail = Promise.resolve();
+
+    return (task) => {
+      const result = tail.then(task, task);
+      tail = result.catch(() => {});
+      return result;
+    };
+  }
 
   function actionApi() {
     return api.action || api.browserAction;
@@ -92,31 +104,17 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     });
   }
 
-  function domainToMatches(domain) {
-    const normalizedDomain = config.normalizeDomainInput(domain);
-    if (!normalizedDomain) {
-      return [];
-    }
-
-    return [
-      `http://${normalizedDomain}/*`,
-      `https://${normalizedDomain}/*`,
-      `http://*.${normalizedDomain}/*`,
-      `https://*.${normalizedDomain}/*`
-    ];
-  }
-
   function dynamicMatches(settings) {
     if (settings.mode === config.MODES.DISABLED || !settings.enabled) {
       return [];
     }
 
     if (settings.mode === config.MODES.ALL) {
-      return ["http://*/*", "https://*/*"];
+      return config.ALL_SITE_MATCH_PATTERNS;
     }
 
     return Array.from(
-      new Set(settings.customDomains.flatMap((domain) => domainToMatches(domain)))
+      new Set(settings.customDomains.flatMap(config.getDomainMatchPatterns))
     );
   }
 
@@ -133,26 +131,13 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     return permissionsRemove({ origins: removedOrigins });
   }
 
-  function matchesByPermissionOrigin(matches) {
-    const grouped = new Map();
-
-    for (const match of matches) {
-      if (!grouped.has(match)) {
-        grouped.set(match, []);
-      }
-      grouped.get(match).push(match);
-    }
-
-    return grouped;
-  }
-
   async function filterGrantedMatches(matches) {
     const allowed = [];
     const missing = [];
 
-    for (const [origin, originMatches] of matchesByPermissionOrigin(matches)) {
+    for (const origin of matches) {
       if (await permissionsContains({ origins: [origin] })) {
-        allowed.push(...originMatches);
+        allowed.push(origin);
       } else {
         missing.push(origin);
       }
@@ -168,10 +153,8 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
 
     await storageSet(api.storage.local, {
       [config.REGISTRATION_STATUS_KEY]: {
-        ok: status.missing.length === 0 && !status.error,
         missingOrigins: status.missing,
-        error: status.error || "",
-        checkedAt: Date.now()
+        error: status.error || ""
       }
     });
   }
@@ -199,13 +182,12 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     }
   }
 
-  async function syncDynamicContentScripts(settings = null) {
+  async function syncDynamicContentScripts(settings) {
     if (!api.scripting?.registerContentScripts) {
       return;
     }
 
-    const nextSettings = settings || (await getSettings());
-    const matches = dynamicMatches(nextSettings);
+    const matches = dynamicMatches(settings);
     await unregisterDynamicContentScripts();
 
     if (!matches.length) {
@@ -248,6 +230,30 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     }
   }
 
+  // Registration and permission updates are multi-step browser API operations.
+  // Run them in order so an older update cannot finish after a newer one.
+  function reconcileDynamicContentScripts(previousSettings, nextSettings) {
+    return enqueueReconciliation(async () => {
+      if (previousSettings) {
+        try {
+          await removeNoLongerNeededPermissions(previousSettings, nextSettings);
+        } catch (error) {
+          console.warn(
+            "Could not remove no-longer-needed optional host permissions",
+            error
+          );
+        }
+      }
+
+      try {
+        await syncDynamicContentScripts(nextSettings);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: String(error) };
+      }
+    });
+  }
+
   async function getSettings() {
     const stored = await storageGet(api.storage.sync, {
       [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS
@@ -272,8 +278,8 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       });
     }
 
-    await expireElapsedTimer();
-    await syncDynamicContentScripts();
+    const settings = await expireElapsedTimer();
+    await reconcileDynamicContentScripts(null, settings);
     await updateBadge();
   }
 
@@ -486,38 +492,51 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     };
   }
 
-  async function recordBlockedAttempt(payload) {
-    const settings = await getSettings();
-    const verifiedPayload = analyticsPayloadFromMatch(
-      payload,
-      config.matchShield(payload.senderUrl, settings)
-    );
-    if (!verifiedPayload) {
-      return null;
-    }
+  function recordBlockedAttempt(payload) {
+    return enqueueAnalyticsMutation(async () => {
+      const settings = await getSettings();
+      const verifiedPayload = analyticsPayloadFromMatch(
+        payload,
+        config.matchShield(payload.senderUrl, settings)
+      );
+      if (!verifiedPayload) {
+        return null;
+      }
 
-    const stored = await storageGet(api.storage.local, {
-      [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
+      const stored = await storageGet(api.storage.local, {
+        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
+      });
+      const analytics = freshAnalytics(stored[config.ANALYTICS_KEY]);
+      const siteKey =
+        verifiedPayload.matchType === "all"
+          ? "all"
+          : verifiedPayload.presetId || "custom";
+      const domain = config.normalizeDomainInput(verifiedPayload.domain);
+
+      analytics.total += 1;
+      analytics.lastAt = Date.now();
+      incrementCounter(analytics.bySite, siteKey);
+
+      if (domain) {
+        incrementCounter(analytics.byDomain, domain);
+        analytics.byDomain = trimDomainAnalytics(analytics.byDomain);
+      }
+
+      await storageSet(api.storage.local, {
+        [config.ANALYTICS_KEY]: analytics
+      });
+
+      return analytics;
     });
-    const analytics = freshAnalytics(stored[config.ANALYTICS_KEY]);
-    const siteKey =
-      verifiedPayload.matchType === "all" ? "all" : verifiedPayload.presetId || "custom";
-    const domain = config.normalizeDomainInput(verifiedPayload.domain);
+  }
 
-    analytics.total += 1;
-    analytics.lastAt = Date.now();
-    incrementCounter(analytics.bySite, siteKey);
-
-    if (domain) {
-      incrementCounter(analytics.byDomain, domain);
-      analytics.byDomain = trimDomainAnalytics(analytics.byDomain);
-    }
-
-    await storageSet(api.storage.local, {
-      [config.ANALYTICS_KEY]: analytics
+  function resetAnalytics() {
+    return enqueueAnalyticsMutation(async () => {
+      await storageSet(api.storage.local, {
+        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
+      });
+      return config.EMPTY_ANALYTICS;
     });
-
-    return analytics;
   }
 
   api.runtime.onInstalled?.addListener(() => {
@@ -548,12 +567,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     const settings = config.sanitizeSettings(changes[config.SETTINGS_KEY].newValue);
     updateBadge(settings);
     scheduleBadgeAlarm(settings);
-    removeNoLongerNeededPermissions(previousSettings, settings).catch((error) => {
-      console.warn("Could not remove no-longer-needed optional host permissions", error);
-    });
-    syncDynamicContentScripts(settings).catch((error) => {
-      setRegistrationStatus({ missing: [], error: String(error) }).catch(() => {});
-    });
+    reconcileDynamicContentScripts(previousSettings, settings);
   });
 
   ensureDefaults();
@@ -597,27 +611,17 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return true;
     }
 
-    if (message.type === "anti-scroll-get-analytics") {
-      storageGet(api.storage.local, {
-        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
-      })
-        .then((stored) =>
-          sendResponse({
-            ok: true,
-            analytics: config.sanitizeAnalytics(stored[config.ANALYTICS_KEY])
-          })
-        )
+    if (message.type === "anti-scroll-sync-content-scripts") {
+      getSettings()
+        .then((settings) => reconcileDynamicContentScripts(null, settings))
+        .then(sendResponse)
         .catch((error) => sendResponse({ ok: false, error: String(error) }));
       return true;
     }
 
     if (message.type === "anti-scroll-reset-analytics") {
-      storageSet(api.storage.local, {
-        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
-      })
-        .then(() =>
-          sendResponse({ ok: true, analytics: config.EMPTY_ANALYTICS })
-        )
+      resetAnalytics()
+        .then((analytics) => sendResponse({ ok: true, analytics }))
         .catch((error) => sendResponse({ ok: false, error: String(error) }));
       return true;
     }

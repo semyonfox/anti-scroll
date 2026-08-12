@@ -11,6 +11,44 @@ let permissionRemovals = [];
 let removeShouldFail = false;
 const registeredScripts = [];
 const storageChangeListeners = [];
+let registrationGate = null;
+
+function nextTurn() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function waitFor(check, description) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (check()) {
+      return;
+    }
+    await nextTurn();
+  }
+
+  throw new Error(`Timed out waiting for ${description}`);
+}
+
+function createDeferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+async function captureWarnings(callback) {
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
+
+  try {
+    await callback();
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  return warnings;
+}
 
 function storageArea(name) {
   return {
@@ -84,6 +122,11 @@ globalThis.chrome = {
   scripting: {
     registerContentScripts(details) {
       registeredScripts.push(details);
+      if (registrationGate) {
+        const gate = registrationGate;
+        registrationGate = null;
+        return gate.promise;
+      }
       return Promise.resolve();
     },
     unregisterContentScripts() {
@@ -100,17 +143,23 @@ if (typeof messageListener !== "function") {
   throw new Error("background should register a runtime message listener");
 }
 
-function sendAttempt(message, senderUrl) {
+function sendMessage(
+  message,
+  sender = {
+    id: "anti-scroll-test",
+    url: "chrome-extension://anti-scroll-test/popup/popup.html"
+  }
+) {
   return new Promise((resolve) => {
-    const keepAlive = messageListener(
-      { type: "anti-scroll-attempt", ...message },
-      { id: "anti-scroll-test", url: senderUrl },
-      resolve
-    );
-    if (!keepAlive) {
-      // Invalid payloads respond synchronously before returning false.
-    }
+    messageListener(message, sender, resolve);
   });
+}
+
+function sendAttempt(message, senderUrl) {
+  return sendMessage(
+    { type: "anti-scroll-attempt", ...message },
+    { id: "anti-scroll-test", url: senderUrl }
+  );
 }
 
 function setSettings(settings) {
@@ -260,13 +309,127 @@ function setSettings(settings) {
   permissionRemovals = [];
   removeShouldFail = true;
   registeredScripts.length = 0;
-  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.ALL });
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  const warnings = await captureWarnings(async () => {
+    setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.ALL });
+    await nextTurn();
+    setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+    await nextTurn();
+  });
   removeShouldFail = false;
   if (!permissionRemovals.length || !registeredScripts.length) {
     throw new Error("expected a removal failure not to block dynamic-script synchronization");
+  }
+  if (
+    !warnings.some(
+      ([message]) => message === "Could not remove no-longer-needed optional host permissions"
+    )
+  ) {
+    throw new Error("expected optional permission removal failures to be reported once");
+  }
+
+  permissionDecisions = new Map(
+    config.getDomainMatchPatterns("grant.example").map((origin) => [origin, false])
+  );
+  registeredScripts.length = 0;
+  setSettings({
+    ...config.DEFAULT_SETTINGS,
+    customDomains: ["grant.example"]
+  });
+  await waitFor(
+    () =>
+      storage.local[config.REGISTRATION_STATUS_KEY]?.missingOrigins?.includes(
+        "https://grant.example/*"
+      ),
+    "the missing grant.example permission"
+  );
+  if (registeredScripts.length) {
+    throw new Error("expected missing permissions to prevent dynamic registration");
+  }
+
+  permissionDecisions = new Map(
+    config.getDomainMatchPatterns("grant.example").map((origin) => [origin, true])
+  );
+  const resync = await sendMessage({ type: "anti-scroll-sync-content-scripts" });
+  if (!resync?.ok) {
+    throw new Error("expected a granted permission to trigger registration resync");
+  }
+  await waitFor(
+    () =>
+      registeredScripts.some((details) =>
+        details[0].matches.includes("https://grant.example/*")
+      ),
+    "registration after granting a missing permission"
+  );
+
+  setSettings(config.DEFAULT_SETTINGS);
+  await sendMessage({ type: "anti-scroll-reset-analytics" });
+  const concurrentAttempts = await Promise.all([
+    sendAttempt(
+      { matchType: "feed", presetId: "x", domain: "x.com" },
+      "https://x.com/home"
+    ),
+    sendAttempt(
+      { matchType: "feed", presetId: "x", domain: "x.com" },
+      "https://x.com/home"
+    )
+  ]);
+  if (concurrentAttempts.some((response) => !response?.ok)) {
+    throw new Error("expected concurrent matching attempts to be accepted");
+  }
+  const concurrentAnalytics = config.sanitizeAnalytics(
+    storage.local[config.ANALYTICS_KEY]
+  );
+  if (concurrentAnalytics.total !== 2 || concurrentAnalytics.bySite.x !== 2) {
+    throw new Error("expected concurrent attempts to be recorded without lost increments");
+  }
+
+  const queuedAttempt = sendAttempt(
+    { matchType: "feed", presetId: "x", domain: "x.com" },
+    "https://x.com/home"
+  );
+  const queuedReset = sendMessage({ type: "anti-scroll-reset-analytics" });
+  await Promise.all([queuedAttempt, queuedReset]);
+  if (config.sanitizeAnalytics(storage.local[config.ANALYTICS_KEY]).total !== 0) {
+    throw new Error("expected reset to run after an already-queued analytics attempt");
+  }
+
+  const statusBeforeDisable = storage.local[config.REGISTRATION_STATUS_KEY];
+  setSettings({ ...config.DEFAULT_SETTINGS, mode: config.MODES.DISABLED });
+  await waitFor(
+    () => storage.local[config.REGISTRATION_STATUS_KEY] !== statusBeforeDisable,
+    "disabled registration reconciliation"
+  );
+  permissionDecisions = new Map();
+  registeredScripts.length = 0;
+  const stalledRegistration = createDeferred();
+  registrationGate = stalledRegistration;
+  setSettings({
+    ...config.DEFAULT_SETTINGS,
+    customDomains: ["first.example"]
+  });
+  await waitFor(
+    () => registeredScripts.length === 1,
+    "the first dynamic registration"
+  );
+  setSettings({
+    ...config.DEFAULT_SETTINGS,
+    customDomains: ["second.example"]
+  });
+  await nextTurn();
+  if (registeredScripts.length !== 1) {
+    throw new Error("expected dynamic registrations to wait for the previous update");
+  }
+  stalledRegistration.resolve();
+  await waitFor(
+    () => registeredScripts.length === 2,
+    "the second serialized dynamic registration"
+  );
+  const latestRegistration = registeredScripts.at(-1);
+  if (
+    !latestRegistration[0].matches.includes("https://second.example/*") ||
+    latestRegistration[0].matches.some((match) => match.includes("first.example"))
+  ) {
+    throw new Error("expected the final dynamic registration to use the latest settings");
   }
 
   console.log("background message validation ok");
