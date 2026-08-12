@@ -273,6 +273,33 @@ for (const manifestName of [
   }
 }
 
+const manifests = Object.fromEntries(
+  ["manifest.json", "manifest.chromium.json", "manifest.firefox.json"].map(
+    (manifestName) => [
+      manifestName,
+      JSON.parse(fs.readFileSync(path.join(__dirname, "..", manifestName), "utf8"))
+    ]
+  )
+);
+for (const field of [
+  "manifest_version",
+  "name",
+  "version",
+  "description",
+  "action",
+  "content_scripts",
+  "host_permissions",
+  "optional_host_permissions",
+  "permissions"
+]) {
+  const chromiumValue = JSON.stringify(manifests["manifest.chromium.json"][field]);
+  for (const manifestName of ["manifest.json", "manifest.firefox.json"]) {
+    if (JSON.stringify(manifests[manifestName][field]) !== chromiumValue) {
+      throw new Error(`${manifestName} must share ${field} with Chromium`);
+    }
+  }
+}
+
 const pageLockSource = fs.readFileSync(
   path.join(__dirname, "..", "src", "page-lock.js"),
   "utf8"

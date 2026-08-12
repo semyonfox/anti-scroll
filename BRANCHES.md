@@ -15,6 +15,9 @@ Run this after committing to `main`:
 .\scripts\sync-target-branches.ps1
 ```
 
+Run it from a clean checkout. With `-Push`, it force-updates the target branches
+using `--force-with-lease`.
+
 Use this to build target folders:
 
 ```powershell

@@ -106,6 +106,7 @@
     lastAt: null
   };
   const MAX_ANALYTICS_DOMAINS = 200;
+  const ALL_SITE_MATCH_PATTERNS = ["http://*/*", "https://*/*"];
 
   const MESSAGING_PATHS = {
     facebook: [/^\/messages(\/|$)/i, /^\/messages\/t(\/|$)/i],
@@ -297,6 +298,20 @@
       normalizedHost === normalizedDomain ||
       normalizedHost.endsWith(`.${normalizedDomain}`)
     );
+  }
+
+  function getDomainMatchPatterns(domain) {
+    const normalizedDomain = normalizeDomainInput(domain);
+    if (!normalizedDomain) {
+      return [];
+    }
+
+    return [
+      `http://${normalizedDomain}/*`,
+      `https://${normalizedDomain}/*`,
+      `http://*.${normalizedDomain}/*`,
+      `https://*.${normalizedDomain}/*`
+    ];
   }
 
   function sanitizeSettings(value) {
@@ -551,9 +566,7 @@
     }
   }
 
-  function matchFeedShield(url, urlMatch, settingsValue) {
-    const settings = sanitizeSettings(settingsValue);
-
+  function matchFeedShieldWithSettings(url, urlMatch, settings) {
     if (
       !settings.strictFeeds ||
       !urlMatch?.active ||
@@ -580,8 +593,17 @@
     };
   }
 
+  function matchFeedShield(url, urlMatch, settingsValue) {
+    return matchFeedShieldWithSettings(
+      url,
+      urlMatch,
+      sanitizeSettings(settingsValue)
+    );
+  }
+
   function matchShield(url, settingsValue) {
-    const urlMatch = matchUrl(url, settingsValue);
+    const settings = sanitizeSettings(settingsValue);
+    const urlMatch = matchUrlWithSettings(url, settings);
 
     if (!urlMatch.active) {
       return urlMatch;
@@ -605,7 +627,7 @@
       };
     }
 
-    const feedShield = matchFeedShield(url, urlMatch, settingsValue);
+    const feedShield = matchFeedShieldWithSettings(url, urlMatch, settings);
     if (feedShield.active) {
       return {
         ...urlMatch,
@@ -623,8 +645,7 @@
     };
   }
 
-  function matchUrl(url, settingsValue) {
-    const settings = sanitizeSettings(settingsValue);
+  function matchUrlWithSettings(url, settings) {
     let parsed;
 
     try {
@@ -710,6 +731,10 @@
     return { active: false, reason: "not-blocked", host };
   }
 
+  function matchUrl(url, settingsValue) {
+    return matchUrlWithSettings(url, sanitizeSettings(settingsValue));
+  }
+
   function getApi() {
     return root.browser || root.chrome;
   }
@@ -742,12 +767,14 @@
     DEFAULT_SETTINGS,
     EMPTY_ANALYTICS,
     MAX_ANALYTICS_DOMAINS,
+    ALL_SITE_MATCH_PATTERNS,
     normalizeHost,
     normalizeDomainInput,
     parseDomainList,
     uniqueDomains,
     createRecord,
     domainMatches,
+    getDomainMatchPatterns,
     sanitizeSettings,
     sanitizeAnalytics,
     getPresetById,

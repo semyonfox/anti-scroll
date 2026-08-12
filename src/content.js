@@ -892,13 +892,9 @@
   }
 
   function disableLock() {
-    if (!locked) {
-      hideShield();
-      return;
+    if (locked) {
+      releaseLockOnly();
     }
-
-    releaseLockOnly();
-    hideShield();
   }
 
   function releaseLockOnly() {
