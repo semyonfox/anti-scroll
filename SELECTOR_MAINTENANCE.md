@@ -2,6 +2,35 @@
 
 Use this checklist when a supported site changes markup or a new feed surface needs coverage.
 
+## Review log
+
+### 2026-08-22 — selector freshness review
+
+Verified every preset against live evidence (fetched same day): the irbis-sh/no-doomscroll filter
+lists (updated every 12 hours, covers X, YouTube, TikTok, Instagram, Reddit, Bluesky, LinkedIn,
+Twitch), live `news.ycombinator.com` HTML, maintained userscripts/extensions (github-old-feed,
+old-github-feed, Substack-notes-hider, Threads Plugin, threads-feed-blocker), News Feed Eradicator's
+Facebook issue tracker, and 2026 scraping guides for X/TikTok testid stability.
+
+- Verified current, no change: X (`cellInnerDiv`, `tweet`, `news_sidebar`, `sidebarColumn`),
+  Bluesky, Twitch (exact matches), Hacker News (`tr#bigbox td table` matches live DOM),
+  Substack Notes feed aria-label, Facebook `div[role='feed']` + MainFeed/FeedUnit pagelets,
+  LinkedIn `.feed-shared-update-v2` family, YouTube Shorts/end-screen selectors.
+- Added (evidence-backed): TikTok nested `h2:has(.TUXTooltip-reference button[aria-label=...])`
+  variants ×3; Substack `div[aria-label='Activity']`; GitHub `.feed-right-sidebar`.
+- Left alone as unverifiable, re-check next review:
+  - Reddit: `faceplate-batch`, `[data-testid='post-container']`, `#right-sidebar-container`
+    (live curl of reddit.com returns only a JS shell; could not inspect SSR markup).
+  - Facebook: Reels/Stories aria-labels and `data-pagelet^='VideoHome'`.
+  - LinkedIn: `div[data-testid='mainFeed']`, `componentkey` selectors.
+  - Threads: `#barcelona-page-layout > div > div` (absent from logged-out SSR; id unconfirmed since
+    2024), `div[aria-label*='Timeline']`. Post containers via `[role='article']` are confirmed.
+  - GitHub: `#feed` (dashboard root is `#dashboard feed-container`; right rail is now
+    `.feed-right-sidebar`).
+  - X/TikTok: `aria-label*='Timeline'`, `div[class*='DivVideoFeed']` class-prefix match.
+- Watch item: Meta's August 2026 feed redesign is mobile-first so far; desktop Facebook selectors
+  may need review when it lands there.
+
 ## 1. Reproduce the surface
 
 - Confirm the exact URL, logged-in state, viewport, and browser where the feed or entry point appears.

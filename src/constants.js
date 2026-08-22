@@ -7,83 +7,83 @@
   const MODES = {
     DISABLED: "disabled",
     SELECTED: "selected",
-    ALL: "all"
+    ALL: "all",
   };
 
   const PRESETS = [
     {
       id: "reddit",
       label: "Reddit",
-      domains: ["reddit.com", "old.reddit.com"]
+      domains: ["reddit.com", "old.reddit.com"],
     },
     {
       id: "youtube",
       label: "YouTube",
-      domains: ["youtube.com", "youtu.be"]
+      domains: ["youtube.com", "youtu.be"],
     },
     {
       id: "instagram",
       label: "Instagram",
-      domains: ["instagram.com"]
+      domains: ["instagram.com"],
     },
     {
       id: "tiktok",
       label: "TikTok",
-      domains: ["tiktok.com"]
+      domains: ["tiktok.com"],
     },
     {
       id: "x",
       label: "X / Twitter",
-      domains: ["x.com", "twitter.com"]
+      domains: ["x.com", "twitter.com"],
     },
     {
       id: "facebook",
       label: "Facebook",
-      domains: ["facebook.com"]
+      domains: ["facebook.com"],
     },
     {
       id: "linkedin",
       label: "LinkedIn",
-      domains: ["linkedin.com"]
+      domains: ["linkedin.com"],
     },
     {
       id: "threads",
       label: "Threads",
-      domains: ["threads.com", "threads.net"]
+      domains: ["threads.com", "threads.net"],
     },
     {
       id: "bluesky",
       label: "Bluesky",
-      domains: ["bsky.app"]
+      domains: ["bsky.app"],
     },
     {
       id: "twitch",
       label: "Twitch",
       domains: ["twitch.tv"],
-      defaultEnabled: false
+      defaultEnabled: false,
     },
     {
       id: "substack",
       label: "Substack",
       domains: ["substack.com"],
-      defaultEnabled: false
+      defaultEnabled: false,
     },
     {
       id: "github",
       label: "GitHub",
       domains: ["github.com"],
-      defaultEnabled: false
+      defaultEnabled: false,
     },
     {
       id: "hackernews",
       label: "Hacker News",
       domains: ["news.ycombinator.com"],
-      defaultEnabled: false
-    }
+      defaultEnabled: false,
+    },
   ];
 
   const DEFAULT_PRESET_STATE = Object.fromEntries(
-    PRESETS.map((preset) => [preset.id, preset.defaultEnabled !== false])
+    PRESETS.map((preset) => [preset.id, preset.defaultEnabled !== false]),
   );
 
   const DEFAULT_SETTINGS = {
@@ -96,14 +96,14 @@
     allowMessagingPages: true,
     presets: DEFAULT_PRESET_STATE,
     customDomains: [],
-    pausedUntilByHost: {}
+    pausedUntilByHost: {},
   };
 
   const EMPTY_ANALYTICS = {
     total: 0,
     bySite: {},
     byDomain: {},
-    lastAt: null
+    lastAt: null,
   };
   const MAX_ANALYTICS_DOMAINS = 200;
   const ALL_SITE_MATCH_PATTERNS = ["http://*/*", "https://*/*"];
@@ -112,7 +112,7 @@
     facebook: [/^\/messages(\/|$)/i, /^\/messages\/t(\/|$)/i],
     instagram: [/^\/direct(\/|$)/i],
     linkedin: [/^\/messaging(\/|$)/i],
-    x: [/^\/messages(\/|$)/i, /^\/i\/chat(\/|$)/i]
+    x: [/^\/messages(\/|$)/i, /^\/i\/chat(\/|$)/i],
   };
 
   const FEED_SELECTORS = {
@@ -126,7 +126,7 @@
       "article:has(a[href*='/comments/'])",
       "recent-posts",
       "reddit-recent-pages",
-      "#right-sidebar-container"
+      "#right-sidebar-container",
     ],
     youtube: [
       "ytd-browse[page-subtype='home'] ytd-rich-grid-renderer #contents",
@@ -151,7 +151,7 @@
       "#related",
       ".ytp-ce-element",
       ".html5-endscreen",
-      ".ytp-suggestion-set"
+      ".ytp-suggestion-set",
     ],
     instagram: [
       "main article",
@@ -162,7 +162,7 @@
       "main:has(a[href='/explore/people/'])",
       "div:has(> div > a[href='/explore/people/'])",
       "nav a[href='/reels/']",
-      "nav a[href='/explore/']"
+      "nav a[href='/explore/']",
     ],
     tiktok: [
       "#main-content-homepage_hot",
@@ -176,9 +176,12 @@
       "h2:has(button[aria-label='For You'])",
       "h2:has(button[aria-label='Explore'])",
       "h2:has(button[aria-label='Following'])",
+      "h2:has(.TUXTooltip-reference button[aria-label='For You'])",
+      "h2:has(.TUXTooltip-reference button[aria-label='Explore'])",
+      "h2:has(.TUXTooltip-reference button[aria-label='Following'])",
       ".TUXTooltip-reference:has(button[aria-label='For You'])",
       ".TUXTooltip-reference:has(button[aria-label='Explore'])",
-      ".TUXTooltip-reference:has(button[aria-label='Following'])"
+      ".TUXTooltip-reference:has(button[aria-label='Following'])",
     ],
     x: [
       "main[role='main'] div[data-testid='cellInnerDiv']",
@@ -187,7 +190,7 @@
       "main[role='main'] div[data-testid='primaryColumn'] section",
       "div[data-testid='news_sidebar']",
       "div[data-testid='sidebarColumn'] a[href^='/i/connect_people']",
-      "a[href='/explore/tabs/for-you']"
+      "a[href='/explore/tabs/for-you']",
     ],
     facebook: [
       "div[role='feed']",
@@ -200,7 +203,7 @@
       "a[href*='/reel/']",
       "a[href*='/reels/']",
       "[aria-label='Stories']",
-      "[data-pagelet='Stories']"
+      "[data-pagelet='Stories']",
     ],
     linkedin: [
       "main .feed-shared-update-v2",
@@ -215,16 +218,16 @@
       ".feed-right-rail",
       "#feed-right-rail-tooltip-outlet",
       "[componentkey='newsAndGamesCard']",
-      "section:has(.games-entrypoints-module__subheader)"
+      "section:has(.games-entrypoints-module__subheader)",
     ],
     threads: [
       "main [role='article']",
       "main div[aria-label*='Timeline'] [role='article']",
-      "#barcelona-page-layout > div > div"
+      "#barcelona-page-layout > div > div",
     ],
     bluesky: [
       "div[data-testid='customFeedPage-feed']",
-      "div[data-testid='followingFeedPage']"
+      "div[data-testid='followingFeedPage']",
     ],
     twitch: [
       "main:has(#front-page-main-content)",
@@ -232,19 +235,16 @@
       "div.side-nav-section:has(a[href^='/directory/category/'])",
       "div.side-nav-section:has([data-test-selector='similarity-channel'])",
       ".find-me",
-      ".tw-tower:has([data-test-selector='shelf-card-selector'])"
+      ".tw-tower:has([data-test-selector='shelf-card-selector'])",
     ],
-    substack: [
-      "div[aria-label='Notes feed']"
-    ],
+    substack: ["div[aria-label='Notes feed']", "div[aria-label='Activity']"],
     github: [
       "#dashboard",
       "#feed",
-      "aside.feed-right-column"
+      "aside.feed-right-column",
+      ".feed-right-sidebar",
     ],
-    hackernews: [
-      "tr#bigbox td table"
-    ]
+    hackernews: ["tr#bigbox td table"],
   };
 
   function normalizeHost(host) {
@@ -256,14 +256,17 @@
   }
 
   function normalizeDomainInput(value) {
-    const raw = String(value || "").trim().toLowerCase();
+    const raw = String(value || "")
+      .trim()
+      .toLowerCase();
     if (!raw) {
       return "";
     }
 
     let candidate = raw;
     try {
-      candidate = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname;
+      candidate = new URL(raw.includes("://") ? raw : `https://${raw}`)
+        .hostname;
     } catch {
       candidate = raw.split(/[/?#]/)[0];
     }
@@ -284,7 +287,9 @@
   }
 
   function uniqueDomains(domains) {
-    return Array.from(new Set(domains.map(normalizeDomainInput).filter(Boolean)));
+    return Array.from(
+      new Set(domains.map(normalizeDomainInput).filter(Boolean)),
+    );
   }
 
   function createRecord() {
@@ -310,7 +315,7 @@
       `http://${normalizedDomain}/*`,
       `https://${normalizedDomain}/*`,
       `http://*.${normalizedDomain}/*`,
-      `https://*.${normalizedDomain}/*`
+      `https://*.${normalizedDomain}/*`,
     ];
   }
 
@@ -372,7 +377,7 @@
           : DEFAULT_SETTINGS.allowMessagingPages,
       presets: presetState,
       customDomains: uniqueDomains(incoming.customDomains || []),
-      pausedUntilByHost
+      pausedUntilByHost,
     };
   }
 
@@ -384,7 +389,7 @@
     for (const siteKey of [
       ...PRESETS.map((preset) => preset.id),
       "custom",
-      "all"
+      "all",
     ]) {
       const count = incoming.bySite?.[siteKey];
       if (Number.isFinite(count) && count > 0) {
@@ -402,10 +407,13 @@
     }
 
     return {
-      total: Number.isFinite(incoming.total) && incoming.total > 0 ? incoming.total : 0,
+      total:
+        Number.isFinite(incoming.total) && incoming.total > 0
+          ? incoming.total
+          : 0,
       bySite,
       byDomain,
-      lastAt: typeof incoming.lastAt === "number" ? incoming.lastAt : null
+      lastAt: typeof incoming.lastAt === "number" ? incoming.lastAt : null,
     };
   }
 
@@ -483,7 +491,7 @@
             "legal",
             "p",
             "reel",
-            "stories"
+            "stories",
           ])
         );
 
@@ -511,7 +519,7 @@
             "privacy",
             "search",
             "settings",
-            "tos"
+            "tos",
           ])
         );
 
@@ -519,7 +527,7 @@
         return (
           path === "/" ||
           /^\/(watch|reel|reels|groups|gaming|marketplace|friends)(\/|$)/.test(
-            path
+            path,
           ) ||
           isSingleSegmentPath(path, [
             "about",
@@ -528,7 +536,7 @@
             "login",
             "messages",
             "privacy",
-            "settings"
+            "settings",
           ])
         );
 
@@ -580,7 +588,7 @@
       return {
         active: false,
         reason: "not-feed-like",
-        presetId: urlMatch.presetId
+        presetId: urlMatch.presetId,
       };
     }
 
@@ -589,7 +597,7 @@
       type: "feed",
       presetId: urlMatch.presetId,
       label: urlMatch.label,
-      host: urlMatch.host
+      host: urlMatch.host,
     };
   }
 
@@ -597,7 +605,7 @@
     return matchFeedShieldWithSettings(
       url,
       urlMatch,
-      sanitizeSettings(settingsValue)
+      sanitizeSettings(settingsValue),
     );
   }
 
@@ -614,7 +622,7 @@
         ...urlMatch,
         active: true,
         type: "all",
-        reason: "all-sites"
+        reason: "all-sites",
       };
     }
 
@@ -623,7 +631,7 @@
         ...urlMatch,
         active: true,
         type: "custom",
-        reason: "custom-domain"
+        reason: "custom-domain",
       };
     }
 
@@ -633,7 +641,7 @@
         ...urlMatch,
         ...feedShield,
         active: true,
-        reason: "feed"
+        reason: "feed",
       };
     }
 
@@ -641,7 +649,7 @@
       ...urlMatch,
       active: false,
       reason: feedShield.reason,
-      selected: true
+      selected: true,
     };
   }
 
@@ -669,7 +677,7 @@
         active: false,
         reason: "timer-ended",
         host,
-        activeUntil: settings.activeUntil
+        activeUntil: settings.activeUntil,
       };
     }
 
@@ -684,13 +692,16 @@
         type: "all",
         label: host || "This site",
         host,
-        domain: host
+        domain: host,
       };
     }
 
     for (const preset of PRESETS) {
       const enabled = settings.presets[preset.id] !== false;
-      if (!enabled || !preset.domains.some((domain) => domainMatches(host, domain))) {
+      if (
+        !enabled ||
+        !preset.domains.some((domain) => domainMatches(host, domain))
+      ) {
         continue;
       }
 
@@ -700,7 +711,7 @@
           reason: "messaging-page",
           host,
           presetId: preset.id,
-          label: preset.label
+          label: preset.label,
         };
       }
 
@@ -710,12 +721,12 @@
         presetId: preset.id,
         label: preset.label,
         host,
-        domain: preset.domains.find((domain) => domainMatches(host, domain))
+        domain: preset.domains.find((domain) => domainMatches(host, domain)),
       };
     }
 
     const customDomain = settings.customDomains.find((domain) =>
-      domainMatches(host, domain)
+      domainMatches(host, domain),
     );
 
     if (customDomain) {
@@ -724,7 +735,7 @@
         type: "custom",
         label: customDomain,
         host,
-        domain: customDomain
+        domain: customDomain,
       };
     }
 
@@ -741,18 +752,42 @@
 
   function storageGet(area, defaults) {
     return new Promise((resolve) => {
-      const result = area.get(defaults, resolve);
-      if (result?.then) {
-        result.then(resolve);
+      let settled = false;
+      const finish = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+
+      try {
+        const result = area.get(defaults, finish);
+        if (result?.then) {
+          result.then(finish, () => finish(defaults));
+        }
+      } catch {
+        finish(defaults);
       }
     });
   }
 
   function storageSet(area, value) {
     return new Promise((resolve) => {
-      const result = area.set(value, resolve);
-      if (result?.then) {
-        result.then(resolve);
+      let settled = false;
+      const finish = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+
+      try {
+        const result = area.set(value, finish);
+        if (result?.then) {
+          result.then(finish, finish);
+        }
+      } catch {
+        finish();
       }
     });
   }
@@ -784,6 +819,6 @@
     matchUrl,
     getApi,
     storageGet,
-    storageSet
+    storageSet,
   };
 })(globalThis);
