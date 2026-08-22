@@ -11,7 +11,7 @@
     registrationStatus: { missingOrigins: [], error: "" },
     tab: null,
     tabMatch: null,
-    query: ""
+    query: "",
   };
 
   const elements = {};
@@ -24,9 +24,11 @@
 
   function sendMessage(message) {
     return new Promise((resolve) => {
-      const result = api.runtime.sendMessage(message, (response) => resolve(response));
+      const result = api.runtime.sendMessage(message, (response) =>
+        resolve(response || undefined),
+      );
       if (result?.then) {
-        result.then(resolve);
+        result.then(resolve, () => resolve());
       }
     });
   }
@@ -81,11 +83,14 @@
 
   async function saveSettings(nextSettings) {
     state.settings = config.sanitizeSettings(nextSettings);
-    await storageSet(api.storage.sync, {
-      [config.SETTINGS_KEY]: state.settings
-    });
-    refreshMatch();
     render();
+    try {
+      await storageSet(api.storage.sync, {
+        [config.SETTINGS_KEY]: state.settings,
+      });
+    } catch {
+      // keep showing what the user asked for; storage.onChanged will correct us if a write lands
+    }
   }
 
   function refreshMatch() {
@@ -112,7 +117,7 @@
     const host = currentHost();
     return (
       config.PRESETS.find((preset) =>
-        preset.domains.some((domain) => config.domainMatches(host, domain))
+        preset.domains.some((domain) => config.domainMatches(host, domain)),
       ) || null
     );
   }
@@ -120,7 +125,7 @@
   function isCurrentCustomSelected() {
     const host = currentHost();
     return state.settings.customDomains.some((domain) =>
-      config.domainMatches(host, domain)
+      config.domainMatches(host, domain),
     );
   }
 
@@ -128,14 +133,14 @@
     const preset = currentPreset();
     return Boolean(
       isCurrentCustomSelected() ||
-        (preset && state.settings.presets[preset.id] !== false)
+      (preset && state.settings.presets[preset.id] !== false),
     );
   }
 
   function formatTime(timestamp) {
     return new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     }).format(new Date(timestamp));
   }
 
@@ -147,15 +152,15 @@
         id: preset.id,
         label: preset.label,
         detail: preset.domains.join(", "),
-        selected: state.settings.presets[preset.id] !== false
+        selected: state.settings.presets[preset.id] !== false,
       })),
       ...state.settings.customDomains.map((domain) => ({
         type: "custom",
         id: domain,
         label: domain,
         detail: "custom",
-        selected: true
-      }))
+        selected: true,
+      })),
     ];
 
     if (!query) {
@@ -163,7 +168,7 @@
     }
 
     return items.filter((item) =>
-      `${item.label} ${item.detail}`.toLowerCase().includes(query)
+      `${item.label} ${item.detail}`.toLowerCase().includes(query),
     );
   }
 
@@ -181,7 +186,9 @@
 
   function isPresetDomain(domain) {
     return config.PRESETS.some((preset) =>
-      preset.domains.some((presetDomain) => config.domainMatches(domain, presetDomain))
+      preset.domains.some((presetDomain) =>
+        config.domainMatches(domain, presetDomain),
+      ),
     );
   }
 
@@ -225,7 +232,7 @@
     if (match?.active) {
       elements.statusPill.textContent =
         match.type === "all"
-          ? "All Sites"
+          ? "All sites"
           : match.type === "custom"
             ? "Blocked"
             : "Feed";
@@ -247,7 +254,7 @@
     }
 
     elements.statusPill.textContent =
-      state.settings.mode === config.MODES.ALL ? "All Sites" : "Selected";
+      state.settings.mode === config.MODES.ALL ? "All sites" : "Selected";
     elements.statusPill.classList.add("selected");
     elements.currentStatus.textContent =
       match?.reason === "messaging-page"
@@ -259,7 +266,7 @@
     for (const button of [
       elements.modeDisabled,
       elements.modeSelected,
-      elements.modeAll
+      elements.modeAll,
     ]) {
       const active = button.dataset.mode === state.settings.mode;
       button.classList.toggle("active", active);
@@ -284,8 +291,8 @@
   function renderCurrentButton() {
     elements.toggleCurrent.disabled = !canUseCurrentHost();
     elements.toggleCurrent.textContent = isCurrentSelected()
-      ? "Remove Site"
-      : "Add Site";
+      ? "Remove site"
+      : "Add site";
   }
 
   function renderPauseButton() {
@@ -296,7 +303,9 @@
       (state.settings.mode === config.MODES.ALL || isCurrentSelected());
 
     elements.pauseCurrent.disabled = !canPause;
-    elements.pauseCurrent.textContent = pausedUntil ? "Resume" : `${PAUSE_MINUTES}m Pause`;
+    elements.pauseCurrent.textContent = pausedUntil
+      ? "Resume"
+      : `${PAUSE_MINUTES}m Pause`;
     elements.pauseCurrent.title = pausedUntil
       ? `Resume ${currentHost()}`
       : `Pause ${currentHost()} for ${PAUSE_MINUTES} minutes`;
@@ -324,7 +333,10 @@
     checkbox.checked = item.selected;
     checkbox.dataset.itemType = item.type;
     checkbox.dataset.itemId = item.id;
-    checkbox.setAttribute("aria-label", `${item.selected ? "Disable" : "Enable"} ${item.label}`);
+    checkbox.setAttribute(
+      "aria-label",
+      `${item.selected ? "Disable" : "Enable"} ${item.label}`,
+    );
     text.className = "site-label";
     text.htmlFor = checkboxId;
     title.textContent = item.label;
@@ -363,9 +375,11 @@
       const empty = document.createElement("div");
       const text = document.createElement("span");
       empty.className = "empty-row";
+      empty.setAttribute("role", "listitem");
+      const query = state.query.trim();
       text.textContent = domain
         ? `No match for ${domain}`
-        : "No matching sites";
+        : `No matches for "${query}"`;
       empty.append(text);
 
       if (domain && !existingCustom && !existingPreset) {
@@ -391,8 +405,9 @@
   function analyticsEntries(counts, labelForKey) {
     return Object.entries(counts)
       .map(([key, count]) => ({ key, count, label: labelForKey(key) }))
-      .sort((left, right) =>
-        right.count - left.count || left.label.localeCompare(right.label)
+      .sort(
+        (left, right) =>
+          right.count - left.count || left.label.localeCompare(right.label),
       );
   }
 
@@ -446,10 +461,15 @@
 
   function renderStats() {
     elements.attemptTotal.textContent = `${state.analytics.total.toLocaleString()} blocked`;
-    elements.analyticsLastAt.textContent = formatLastActivity(state.analytics.lastAt);
+    elements.analyticsLastAt.textContent = formatLastActivity(
+      state.analytics.lastAt,
+    );
 
     const siteEntries = analyticsEntries(state.analytics.bySite, siteLabel);
-    const domainEntries = analyticsEntries(state.analytics.byDomain, (domain) => domain);
+    const domainEntries = analyticsEntries(
+      state.analytics.byDomain,
+      (domain) => domain,
+    );
     const fragment = document.createDocumentFragment();
 
     if (!siteEntries.length && !domainEntries.length) {
@@ -493,14 +513,14 @@
 
     await saveSettings({
       ...state.settings,
-      mode
+      mode,
     });
   }
 
   async function startTimer() {
     const minutes = Math.max(
       1,
-      Math.min(1440, Number.parseInt(elements.durationMinutes.value, 10) || 30)
+      Math.min(1440, Number.parseInt(elements.durationMinutes.value, 10) || 30),
     );
     elements.durationMinutes.value = String(minutes);
     await saveSettings({
@@ -509,14 +529,14 @@
         state.settings.mode === config.MODES.DISABLED
           ? config.MODES.SELECTED
           : state.settings.mode,
-      activeUntil: Date.now() + minutes * 60 * 1000
+      activeUntil: Date.now() + minutes * 60 * 1000,
     });
   }
 
   async function clearTimer() {
     await saveSettings({
       ...state.settings,
-      activeUntil: null
+      activeUntil: null,
     });
   }
 
@@ -530,8 +550,8 @@
       await saveSettings({
         ...state.settings,
         customDomains: state.settings.customDomains.filter(
-          (domain) => !config.domainMatches(host, domain)
-        )
+          (domain) => !config.domainMatches(host, domain),
+        ),
       });
       return;
     }
@@ -542,8 +562,8 @@
         ...state.settings,
         presets: {
           ...state.settings.presets,
-          [preset.id]: false
-        }
+          [preset.id]: false,
+        },
       });
       return;
     }
@@ -554,7 +574,10 @@
 
     await saveSettings({
       ...state.settings,
-      customDomains: config.uniqueDomains([...state.settings.customDomains, host])
+      customDomains: config.uniqueDomains([
+        ...state.settings.customDomains,
+        host,
+      ]),
     });
   }
 
@@ -575,7 +598,7 @@
 
     await saveSettings({
       ...state.settings,
-      pausedUntilByHost
+      pausedUntilByHost,
     });
   }
 
@@ -601,8 +624,8 @@
         ...state.settings,
         presets: {
           ...state.settings.presets,
-          [checkbox.dataset.itemId]: checkbox.checked
-        }
+          [checkbox.dataset.itemId]: checkbox.checked,
+        },
       });
       return;
     }
@@ -612,7 +635,7 @@
       ...state.settings,
       customDomains: checkbox.checked
         ? config.uniqueDomains([...state.settings.customDomains, domain])
-        : state.settings.customDomains.filter((item) => item !== domain)
+        : state.settings.customDomains.filter((item) => item !== domain),
     });
   }
 
@@ -625,8 +648,8 @@
       ...state.settings,
       customDomains: config.uniqueDomains([
         ...state.settings.customDomains,
-        domain
-      ])
+        domain,
+      ]),
     });
     elements.siteSearch.value = "";
     state.query = "";
@@ -642,8 +665,8 @@
       await saveSettings({
         ...state.settings,
         customDomains: state.settings.customDomains.filter(
-          (domain) => domain !== removeDomain
-        )
+          (domain) => domain !== removeDomain,
+        ),
       });
       return;
     }
@@ -657,8 +680,8 @@
     await saveSettings({
       ...state.settings,
       presets: Object.fromEntries(
-        config.PRESETS.map((preset) => [preset.id, true])
-      )
+        config.PRESETS.map((preset) => [preset.id, true]),
+      ),
     });
   }
 
@@ -666,50 +689,63 @@
     await saveSettings({
       ...state.settings,
       presets: Object.fromEntries(
-        config.PRESETS.map((preset) => [preset.id, false])
+        config.PRESETS.map((preset) => [preset.id, false]),
       ),
-      customDomains: []
+      customDomains: [],
     });
   }
 
   async function toggleOption(event) {
     await saveSettings({
       ...state.settings,
-      [event.currentTarget.id]: event.currentTarget.checked
+      [event.currentTarget.id]: event.currentTarget.checked,
     });
   }
 
   async function resetStats() {
     const response = await sendMessage({ type: "anti-scroll-reset-analytics" });
-    state.analytics = config.sanitizeAnalytics(response?.analytics);
+    // no response means the write failed; keep the real numbers instead of flashing zeros
+    if (!response?.analytics) {
+      return;
+    }
+    state.analytics = config.sanitizeAnalytics(response.analytics);
     renderStats();
   }
 
   async function loadInitialState() {
-    const [storedSettings, storedAnalytics, storedStatus, tab] = await Promise.all([
-      storageGet(api.storage.sync, {
-        [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS
-      }),
-      storageGet(api.storage.local, {
-        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
-      }),
-      storageGet(api.storage.local, {
-        [config.REGISTRATION_STATUS_KEY]: {
-          missingOrigins: [],
-          error: ""
-        }
-      }),
-      getActiveTab()
-    ]);
+    try {
+      const [storedSettings, storedAnalytics, storedStatus, tab] =
+        await Promise.all([
+          storageGet(api.storage.sync, {
+            [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS,
+          }),
+          storageGet(api.storage.local, {
+            [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS,
+          }),
+          storageGet(api.storage.local, {
+            [config.REGISTRATION_STATUS_KEY]: {
+              missingOrigins: [],
+              error: "",
+            },
+          }),
+          getActiveTab(),
+        ]);
 
-    state.settings = config.sanitizeSettings(storedSettings[config.SETTINGS_KEY]);
-    state.analytics = config.sanitizeAnalytics(
-      storedAnalytics[config.ANALYTICS_KEY]
-    );
-    state.registrationStatus = sanitizeRegistrationStatus(
-      storedStatus[config.REGISTRATION_STATUS_KEY]
-    );
-    state.tab = tab;
+      state.settings = config.sanitizeSettings(
+        storedSettings[config.SETTINGS_KEY],
+      );
+      state.analytics = config.sanitizeAnalytics(
+        storedAnalytics[config.ANALYTICS_KEY],
+      );
+      state.registrationStatus = sanitizeRegistrationStatus(
+        storedStatus[config.REGISTRATION_STATUS_KEY],
+      );
+      state.tab = tab;
+    } catch (error) {
+      // fall back to defaults but say why the popup looks empty
+      elements.currentHost.textContent = "Could not load settings";
+      elements.currentStatus.textContent = `Something went wrong: ${error?.message || error}`;
+    }
     render();
   }
 
@@ -718,7 +754,7 @@
       missingOrigins: Array.isArray(status?.missingOrigins)
         ? status.missingOrigins.filter((origin) => typeof origin === "string")
         : [],
-      error: typeof status?.error === "string" ? status.error : ""
+      error: typeof status?.error === "string" ? status.error : "",
     };
   }
 
@@ -747,7 +783,7 @@
       "analyticsLastAt",
       "analyticsBreakdown",
       "attemptTotal",
-      "resetStats"
+      "resetStats",
     ]) {
       elements[id] = $(id);
     }
@@ -757,14 +793,24 @@
     for (const button of [
       elements.modeDisabled,
       elements.modeSelected,
-      elements.modeAll
+      elements.modeAll,
     ]) {
       button.addEventListener("click", setMode);
     }
 
     elements.startTimer.addEventListener("click", startTimer);
+    elements.durationMinutes.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      await startTimer();
+    });
     elements.clearTimer.addEventListener("click", clearTimer);
-    elements.grantMissingPermission.addEventListener("click", grantMissingPermission);
+    elements.grantMissingPermission.addEventListener(
+      "click",
+      grantMissingPermission,
+    );
     elements.pauseCurrent.addEventListener("click", togglePauseCurrentSite);
     elements.toggleCurrent.addEventListener("click", toggleCurrentSite);
     elements.siteSearch.addEventListener("input", () => {
@@ -772,6 +818,24 @@
       renderSiteList();
     });
     elements.siteSearch.addEventListener("keydown", async (event) => {
+      if (event.key === "Escape" && elements.siteSearch.value) {
+        elements.siteSearch.value = "";
+        state.query = "";
+        renderSiteList();
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        const first = elements.siteList.querySelector(
+          "input[type='checkbox'], button",
+        );
+        if (first) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+
       if (event.key !== "Enter") {
         return;
       }
@@ -800,7 +864,7 @@
     api.storage.onChanged.addListener((changes, areaName) => {
       if (areaName === "sync" && changes[config.SETTINGS_KEY]) {
         state.settings = config.sanitizeSettings(
-          changes[config.SETTINGS_KEY].newValue
+          changes[config.SETTINGS_KEY].newValue,
         );
         render();
         return;
@@ -808,14 +872,14 @@
 
       if (areaName === "local" && changes[config.REGISTRATION_STATUS_KEY]) {
         state.registrationStatus = sanitizeRegistrationStatus(
-          changes[config.REGISTRATION_STATUS_KEY].newValue
+          changes[config.REGISTRATION_STATUS_KEY].newValue,
         );
         render();
       }
 
       if (areaName === "local" && changes[config.ANALYTICS_KEY]) {
         state.analytics = config.sanitizeAnalytics(
-          changes[config.ANALYTICS_KEY].newValue
+          changes[config.ANALYTICS_KEY].newValue,
         );
         renderStats();
       }
@@ -829,7 +893,8 @@
   }
 
   if (!api?.storage || !api?.tabs) {
-    document.body.textContent = "This browser does not expose extension storage.";
+    document.body.textContent =
+      "This browser does not expose extension storage.";
     return;
   }
 

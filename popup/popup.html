@@ -13,7 +13,7 @@
           <h1>Anti Scroll</h1>
           <p id="currentHost" class="muted">Checking tab&hellip;</p>
         </div>
-        <span id="statusPill" class="pill" role="status">Off</span>
+        <span id="statusPill" class="pill">Off</span>
       </header>
 
       <section class="card mode-row" role="group" aria-label="Blocking mode">
@@ -24,7 +24,7 @@
 
       <section class="card timer-card" aria-label="Timer">
         <div class="timer-row">
-          <label for="durationMinutes">Run for</label>
+          <label for="durationMinutes">Run for <span class="sr-only">minutes</span></label>
           <input
             id="durationMinutes"
             type="number"
@@ -33,7 +33,6 @@
             max="1440"
             step="1"
             value="30"
-            aria-label="Duration in minutes"
           >
           <span class="unit">min</span>
           <button id="startTimer" class="primary" type="button">Start</button>
@@ -43,11 +42,11 @@
       </section>
 
       <section class="card current-row" aria-label="Current site">
-        <span id="currentStatus">This page is allowed</span>
+        <span id="currentStatus" role="status">This page is allowed</span>
         <div class="current-actions">
           <button id="grantMissingPermission" class="plain" type="button" hidden>Grant permission</button>
           <button id="pauseCurrent" class="plain" type="button">15m Pause</button>
-          <button id="toggleCurrent" type="button">Add Site</button>
+          <button id="toggleCurrent" type="button">Add site</button>
         </div>
       </section>
 
@@ -56,7 +55,7 @@
           <h2 id="sitesLabel">Sites</h2>
           <div class="sites-actions">
             <button id="selectAll" class="plain" type="button">Select all</button>
-            <button id="clearSelected" class="plain" type="button">Clear</button>
+            <button id="clearSelected" class="plain" type="button">Clear all</button>
           </div>
         </div>
         <div class="sites-search">
@@ -67,6 +66,7 @@
             spellcheck="false"
             placeholder="Search or type a domain"
             aria-label="Search sites or type a domain to add"
+            aria-controls="siteList"
           >
         </div>
         <div id="siteList" class="site-list" role="list" aria-labelledby="sitesLabel"></div>
@@ -79,7 +79,7 @@
         </label>
         <label>
           <input id="allowEditableFields" type="checkbox">
-          <span>Allow typing fields</span>
+          <span>Allow typing in fields</span>
         </label>
         <label>
           <input id="allowMessagingPages" type="checkbox">

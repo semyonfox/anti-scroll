@@ -44,7 +44,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+  font:
+    13px/1.4 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Ubuntu,
+    Cantarell,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -55,19 +62,26 @@ input {
 }
 
 button {
-  min-height: 30px;
+  min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--panel);
   color: var(--text);
   cursor: pointer;
   font-weight: 600;
-  padding: 0 10px;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  padding: 0 12px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 button:hover {
   background: var(--soft);
+}
+
+button:not(:disabled):active {
+  filter: brightness(0.93);
 }
 
 button:disabled {
@@ -93,11 +107,11 @@ button.primary:hover {
 }
 
 button.plain {
-  min-height: 28px;
+  min-height: 34px;
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 0 7px;
+  padding: 0 8px;
   font-weight: 600;
 }
 
@@ -106,10 +120,14 @@ button.plain:hover {
   color: var(--text);
 }
 
+button.plain:not(:disabled):active {
+  background: var(--line-soft);
+}
+
 button:focus,
 input[type="checkbox"]:focus {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 input[type="number"]:focus,
@@ -121,7 +139,7 @@ input[type="search"]:focus {
 
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 @supports selector(:focus-visible) {
@@ -141,6 +159,7 @@ input[type="checkbox"] {
 
 input[type="number"],
 input[type="search"] {
+  min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--panel);
@@ -149,7 +168,6 @@ input[type="search"] {
 
 input::placeholder {
   color: var(--muted);
-  opacity: 0.8;
 }
 
 .shell {
@@ -268,7 +286,6 @@ h1 {
 
 .timer-row input {
   width: 58px;
-  min-height: 30px;
   padding: 0 6px;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -341,7 +358,6 @@ h1 {
 
 .sites-search input {
   width: 100%;
-  min-height: 32px;
   padding: 0 10px;
 }
 
@@ -359,7 +375,6 @@ h1 {
   min-height: 40px;
   padding: 4px 10px;
   border-bottom: 1px solid var(--line-soft);
-  cursor: pointer;
 }
 
 .site-row:hover {
@@ -397,8 +412,8 @@ h1 {
 }
 
 .site-row .remove {
-  min-width: 26px;
-  min-height: 26px;
+  min-width: 36px;
+  min-height: 36px;
   padding: 0;
   font-size: 14px;
   line-height: 1;
@@ -423,7 +438,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 32px;
+  min-height: 40px;
   cursor: pointer;
 }
 
@@ -518,4 +533,16 @@ h1 {
   * {
     transition: none !important;
   }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
