@@ -11,7 +11,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
   const ANALYTICS_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
   const DYNAMIC_SCRIPT_IDS = [
     "anti-scroll-dynamic-page-lock",
-    "anti-scroll-dynamic-content"
+    "anti-scroll-dynamic-content",
   ];
 
   if (!api?.runtime?.onMessage || !api?.storage) {
@@ -21,6 +21,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
   const { storageGet, storageSet } = config;
   const enqueueReconciliation = createSerialQueue();
   const enqueueAnalyticsMutation = createSerialQueue();
+  const enqueueSettingsUpdate = createSerialQueue();
 
   function createSerialQueue() {
     let tail = Promise.resolve();
@@ -114,14 +115,17 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     }
 
     return Array.from(
-      new Set(settings.customDomains.flatMap(config.getDomainMatchPatterns))
+      new Set(settings.customDomains.flatMap(config.getDomainMatchPatterns)),
     );
   }
 
-  async function removeNoLongerNeededPermissions(previousSettings, nextSettings) {
+  async function removeNoLongerNeededPermissions(
+    previousSettings,
+    nextSettings,
+  ) {
     const nextOrigins = new Set(dynamicMatches(nextSettings));
     const removedOrigins = dynamicMatches(previousSettings).filter(
-      (origin) => !nextOrigins.has(origin)
+      (origin) => !nextOrigins.has(origin),
     );
 
     if (!removedOrigins.length) {
@@ -154,8 +158,8 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     await storageSet(api.storage.local, {
       [config.REGISTRATION_STATUS_KEY]: {
         missingOrigins: status.missing,
-        error: status.error || ""
-      }
+        error: status.error || "",
+      },
     });
   }
 
@@ -176,7 +180,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       await api.scripting.registerContentScripts(details);
     } catch (error) {
       const simplified = details.map(
-        ({ matchOriginAsFallback, world, ...script }) => script
+        ({ matchOriginAsFallback, world, ...script }) => script,
       );
       await api.scripting.registerContentScripts(simplified);
     }
@@ -211,7 +215,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
           allFrames: true,
           matchAboutBlank: true,
           matchOriginAsFallback: true,
-          world: "MAIN"
+          world: "MAIN",
         },
         {
           id: DYNAMIC_SCRIPT_IDS[1],
@@ -220,8 +224,8 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
           runAt: "document_start",
           allFrames: true,
           matchAboutBlank: true,
-          matchOriginAsFallback: true
-        }
+          matchOriginAsFallback: true,
+        },
       ]);
       await setRegistrationStatus({ missing });
     } catch (error) {
@@ -240,7 +244,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
         } catch (error) {
           console.warn(
             "Could not remove no-longer-needed optional host permissions",
-            error
+            error,
           );
         }
       }
@@ -256,28 +260,35 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
 
   async function getSettings() {
     const stored = await storageGet(api.storage.sync, {
-      [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS
+      [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS,
     });
     return config.sanitizeSettings(stored[config.SETTINGS_KEY]);
   }
 
   async function saveSettings(settings) {
     await storageSet(api.storage.sync, {
-      [config.SETTINGS_KEY]: config.sanitizeSettings(settings)
+      [config.SETTINGS_KEY]: config.sanitizeSettings(settings),
+    });
+  }
+
+  // Seed-if-absent runs inside the settings queue so a popup write racing the
+  // install-time seed cannot be clobbered by a stale default.
+  function seedDefaultSettings() {
+    return enqueueSettingsUpdate(async () => {
+      const stored = await storageGet(api.storage.sync, {
+        [config.SETTINGS_KEY]: null,
+      });
+
+      if (!stored[config.SETTINGS_KEY]) {
+        await storageSet(api.storage.sync, {
+          [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS,
+        });
+      }
     });
   }
 
   async function ensureDefaults() {
-    const stored = await storageGet(api.storage.sync, {
-      [config.SETTINGS_KEY]: null
-    });
-
-    if (!stored[config.SETTINGS_KEY]) {
-      await storageSet(api.storage.sync, {
-        [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS
-      });
-    }
-
+    await seedDefaultSettings();
     const settings = await expireElapsedTimer();
     await reconcileDynamicContentScripts(null, settings);
     await updateBadge();
@@ -291,20 +302,21 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return {
         text: "OFF",
         color: "#6b7280",
-        title: "Anti Scroll: off"
+        title: "Anti Scroll: off",
       };
     }
 
     if (settings.activeUntil) {
       const minutes = Math.max(
         1,
-        Math.ceil((settings.activeUntil - Date.now()) / 60000)
+        Math.ceil((settings.activeUntil - Date.now()) / 60000),
       );
-      const timeText = minutes < 100 ? `${minutes}m` : `${Math.ceil(minutes / 60)}h`;
+      const timeText =
+        minutes < 100 ? `${minutes}m` : `${Math.ceil(minutes / 60)}h`;
       return {
         text: timeText,
         color: settings.mode === config.MODES.ALL ? "#ad2f2a" : "#116c5f",
-        title: `Anti Scroll: ${settings.mode}, ${minutes} min left`
+        title: `Anti Scroll: ${settings.mode}, ${minutes} min left`,
       };
     }
 
@@ -312,14 +324,14 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return {
         text: "ALL",
         color: "#ad2f2a",
-        title: "Anti Scroll: all sites"
+        title: "Anti Scroll: all sites",
       };
     }
 
     return {
       text: "SEL",
       color: "#116c5f",
-      title: "Anti Scroll: selected sites"
+      title: "Anti Scroll: selected sites",
     };
   }
 
@@ -335,9 +347,9 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     await Promise.all([
       callExtensionApi(action.setBadgeText?.bind(action), { text: badge.text }),
       callExtensionApi(action.setBadgeBackgroundColor?.bind(action), {
-        color: badge.color
+        color: badge.color,
       }),
-      callExtensionApi(action.setTitle?.bind(action), { title: badge.title })
+      callExtensionApi(action.setTitle?.bind(action), { title: badge.title }),
     ]);
   }
 
@@ -345,40 +357,50 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     const nextSettings = settings || (await getSettings());
     await alarmClear(BADGE_ALARM);
 
-    if (!nextSettings.activeUntil || nextSettings.mode === config.MODES.DISABLED) {
+    if (
+      !nextSettings.activeUntil ||
+      nextSettings.mode === config.MODES.DISABLED
+    ) {
       return;
     }
 
     const now = Date.now();
     if (nextSettings.activeUntil <= now) {
-      await expireElapsedTimer(nextSettings);
+      await expireElapsedTimer();
       return;
     }
 
     await alarmCreate(BADGE_ALARM, {
-      when: Math.min(nextSettings.activeUntil, now + 60 * 1000)
+      when: Math.min(nextSettings.activeUntil, now + 60 * 1000),
     });
   }
 
-  async function expireElapsedTimer(settings = null) {
-    const nextSettings = settings || (await getSettings());
-    if (!nextSettings.activeUntil || nextSettings.activeUntil > Date.now()) {
-      return nextSettings;
-    }
+  // Expiry is a read-modify-write, so it re-reads inside the settings queue
+  // and never writes from a stale snapshot passed by a caller.
+  function expireElapsedTimer() {
+    return enqueueSettingsUpdate(async () => {
+      const current = await getSettings();
+      if (!current.activeUntil || current.activeUntil > Date.now()) {
+        return current;
+      }
 
-    const expiredSettings = {
-      ...nextSettings,
-      mode: config.MODES.DISABLED,
-      activeUntil: null
-    };
+      const expiredSettings = {
+        ...current,
+        mode: config.MODES.DISABLED,
+        activeUntil: null,
+      };
 
-    await saveSettings(expiredSettings);
-    return config.sanitizeSettings(expiredSettings);
+      await saveSettings(expiredSettings);
+      return config.sanitizeSettings(expiredSettings);
+    });
   }
 
   function freshAnalytics(value) {
     const analytics = config.sanitizeAnalytics(value);
-    if (analytics.lastAt && Date.now() - analytics.lastAt > ANALYTICS_RETENTION_MS) {
+    if (
+      analytics.lastAt &&
+      Date.now() - analytics.lastAt > ANALYTICS_RETENTION_MS
+    ) {
       return config.sanitizeAnalytics(config.EMPTY_ANALYTICS);
     }
 
@@ -405,29 +427,15 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     return trimmed;
   }
 
-  function senderHttpHost(sender) {
-    const url = sender?.url || sender?.tab?.url;
-    try {
-      const parsed = new URL(url);
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        return "";
-      }
-      return config.normalizeHost(parsed.hostname);
-    } catch {
-      return "";
-    }
-  }
-
   function senderHttpUrl(sender) {
-    const url = sender?.url || sender?.tab?.url || "";
     try {
-      const parsed = new URL(url);
+      const parsed = new URL(sender?.url || sender?.tab?.url || "");
       if (!["http:", "https:"].includes(parsed.protocol)) {
-        return "";
+        return null;
       }
-      return parsed.href;
+      return parsed;
     } catch {
-      return "";
+      return null;
     }
   }
 
@@ -438,11 +446,13 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return null;
     }
 
-    const senderUrl = senderHttpUrl(sender);
-    const senderHost = senderHttpHost(sender);
-    if (!senderUrl || !senderHost) {
+    const parsedSender = senderHttpUrl(sender);
+    if (!parsedSender) {
       return null;
     }
+
+    const senderUrl = parsedSender.href;
+    const senderHost = config.normalizeHost(parsedSender.hostname);
 
     const presetId =
       typeof message.presetId === "string" &&
@@ -453,16 +463,21 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       const preset = presetId ? config.getPresetById(presetId) : null;
       if (
         !preset ||
-        !preset.domains.some((domain) => config.domainMatches(senderHost, domain))
+        !preset.domains.some((domain) =>
+          config.domainMatches(senderHost, domain),
+        )
       ) {
         return null;
       }
     }
 
     const claimedDomain = config.normalizeDomainInput(
-      message.domain || message.host || senderHost
+      message.domain || message.host || senderHost,
     );
-    if (matchType === "custom" && !config.domainMatches(senderHost, claimedDomain)) {
+    if (
+      matchType === "custom" &&
+      !config.domainMatches(senderHost, claimedDomain)
+    ) {
       return null;
     }
 
@@ -470,7 +485,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       matchType,
       presetId,
       domain: matchType === "all" ? "" : claimedDomain,
-      senderUrl
+      senderUrl,
     };
   }
 
@@ -488,7 +503,10 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     return {
       matchType: match.type,
       presetId: match.presetId || null,
-      domain: match.type === "all" ? "" : match.domain || match.host || payload.domain
+      domain:
+        match.type === "all"
+          ? ""
+          : match.domain || match.host || payload.domain,
     };
   }
 
@@ -497,14 +515,14 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       const settings = await getSettings();
       const verifiedPayload = analyticsPayloadFromMatch(
         payload,
-        config.matchShield(payload.senderUrl, settings)
+        config.matchShield(payload.senderUrl, settings),
       );
       if (!verifiedPayload) {
         return null;
       }
 
       const stored = await storageGet(api.storage.local, {
-        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
+        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS,
       });
       const analytics = freshAnalytics(stored[config.ANALYTICS_KEY]);
       const siteKey =
@@ -523,7 +541,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       }
 
       await storageSet(api.storage.local, {
-        [config.ANALYTICS_KEY]: analytics
+        [config.ANALYTICS_KEY]: analytics,
       });
 
       return analytics;
@@ -533,18 +551,18 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
   function resetAnalytics() {
     return enqueueAnalyticsMutation(async () => {
       await storageSet(api.storage.local, {
-        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS
+        [config.ANALYTICS_KEY]: config.EMPTY_ANALYTICS,
       });
       return config.EMPTY_ANALYTICS;
     });
   }
 
   api.runtime.onInstalled?.addListener(() => {
-    ensureDefaults();
+    ensureDefaults().catch(() => {});
   });
 
   api.runtime.onStartup?.addListener(() => {
-    ensureDefaults();
+    ensureDefaults().catch(() => {});
   });
 
   api.alarms?.onAlarm?.addListener((alarm) => {
@@ -563,14 +581,41 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return;
     }
 
-    const previousSettings = config.sanitizeSettings(changes[config.SETTINGS_KEY].oldValue);
-    const settings = config.sanitizeSettings(changes[config.SETTINGS_KEY].newValue);
-    updateBadge(settings);
-    scheduleBadgeAlarm(settings);
-    reconcileDynamicContentScripts(previousSettings, settings);
+    const previousSettings = config.sanitizeSettings(
+      changes[config.SETTINGS_KEY].oldValue,
+    );
+    const settings = config.sanitizeSettings(
+      changes[config.SETTINGS_KEY].newValue,
+    );
+    updateBadge(settings).catch(() => {});
+    scheduleBadgeAlarm(settings).catch(() => {});
+    reconcileDynamicContentScripts(previousSettings, settings).catch(() => {});
   });
 
-  ensureDefaults();
+  ensureDefaults().catch(() => {});
+
+  // Grants and revocations made outside the popup (browser site settings)
+  // never touch storage, so re-filter registrations when they happen.
+  // Coalesce bursts into one queued pass; our own removals converge because
+  // reconciliation without a previous snapshot never revokes anything.
+  let permissionSyncQueued = false;
+
+  function refreshDynamicRegistration() {
+    if (permissionSyncQueued) {
+      return;
+    }
+
+    permissionSyncQueued = true;
+    Promise.resolve().then(() => {
+      permissionSyncQueued = false;
+      getSettings()
+        .then((settings) => reconcileDynamicContentScripts(null, settings))
+        .catch(() => {});
+    });
+  }
+
+  api.permissions?.onAdded?.addListener(refreshDynamicRegistration);
+  api.permissions?.onRemoved?.addListener(refreshDynamicRegistration);
 
   api.webNavigation?.onHistoryStateUpdated?.addListener((details) => {
     if (details.frameId !== 0 || !details.tabId) {
@@ -579,7 +624,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
 
     api.tabs?.sendMessage?.(details.tabId, {
       type: "anti-scroll-location-change",
-      url: details.url
+      url: details.url,
     });
   });
 
@@ -602,7 +647,10 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       recordBlockedAttempt(payload)
         .then((analytics) => {
           if (!analytics) {
-            sendResponse({ ok: false, error: "Attempt no longer matches active settings" });
+            sendResponse({
+              ok: false,
+              error: "Attempt no longer matches active settings",
+            });
             return;
           }
           sendResponse({ ok: true, analytics });
