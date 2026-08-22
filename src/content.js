@@ -9,10 +9,12 @@
   }
 
   const MAIN_LOCK_TOKEN_REQUEST_EVENT = "anti-scroll-main-lock-token-request";
-  const MAIN_LOCK_TOKEN_RESPONSE_PREFIX = "anti-scroll-main-lock-token-response:";
+  const MAIN_LOCK_TOKEN_RESPONSE_PREFIX =
+    "anti-scroll-main-lock-token-response:";
   const MAIN_LOCK_STATE_PREFIX = "anti-scroll-main-lock-state:";
   const SCROLLABLE_OVERFLOW = /^(auto|scroll|overlay)$/;
   const MAX_SCAN_COUNT = 900;
+  const SCROLL_RECHECK_MS = 2000;
   const SCROLL_KEYS = new Set([
     " ",
     "ArrowDown",
@@ -23,7 +25,7 @@
     "Home",
     "PageDown",
     "PageUp",
-    "Spacebar"
+    "Spacebar",
   ]);
 
   let settings = config.DEFAULT_SETTINGS;
@@ -49,6 +51,7 @@
   const scrollContainers = new Set();
   const scrollPositions = new WeakMap();
   const surfaceTargets = new Set();
+  const scrollCheckCache = new WeakMap();
   const FEED_SELECTORS = config.FEED_SELECTORS;
 
   function buildFeedSelectorCss() {
@@ -182,17 +185,21 @@
       if (typeof token === "string" && token) {
         mainLockToken = token;
         mainLockStateEvent = stateEventName;
+
+        // A late-established channel must still learn about a lock that was
+        // already engaged before the handshake completed.
+        dispatchMainLockState();
       }
     };
 
     try {
       document.addEventListener(responseEventName, onTokenResponse, {
-        once: true
+        once: true,
       });
       document.dispatchEvent(
         new CustomEvent(MAIN_LOCK_TOKEN_REQUEST_EVENT, {
-          detail: { responseEventName, stateEventName }
-        })
+          detail: { responseEventName, stateEventName },
+        }),
       );
     } catch {
       document.removeEventListener(responseEventName, onTokenResponse);
@@ -219,8 +226,8 @@
     try {
       document.dispatchEvent(
         new CustomEvent(mainLockStateEvent, {
-          detail: { locked, token: mainLockToken }
-        })
+          detail: { locked, token: mainLockToken },
+        }),
       );
     } catch {
       // CustomEvent can be unavailable in very old embedded documents.
@@ -242,8 +249,8 @@
 
     return Boolean(
       target.closest(
-        "input, textarea, select, [contenteditable='true'], [role='textbox']"
-      )
+        "input, textarea, select, [contenteditable='true'], [role='textbox']",
+      ),
     );
   }
 
@@ -272,10 +279,11 @@
   }
 
   function getRootScrollPosition() {
-    const scrollingElement = document.scrollingElement || document.documentElement;
+    const scrollingElement =
+      document.scrollingElement || document.documentElement;
     return {
       x: root.scrollX || scrollingElement.scrollLeft || 0,
-      y: root.scrollY || scrollingElement.scrollTop || 0
+      y: root.scrollY || scrollingElement.scrollTop || 0,
     };
   }
 
@@ -294,20 +302,44 @@
       return;
     }
 
-    const scrollingElement = document.scrollingElement || document.documentElement;
+    const scrollingElement =
+      document.scrollingElement || document.documentElement;
     scrollingElement.scrollLeft = rootPosition.x;
     scrollingElement.scrollTop = rootPosition.y;
   }
 
-  function registerScrollContainer(element) {
+  function isRecentNonScroller(element) {
+    const checkedAt = scrollCheckCache.get(element);
+    return (
+      typeof checkedAt === "number" &&
+      Date.now() - checkedAt < SCROLL_RECHECK_MS
+    );
+  }
+
+  // useCache=false keeps mutation-driven and periodic scans authoritative so a
+  // newly-scrollable container is still found as fast as without the cache.
+  function registerScrollContainer(element, useCache = true) {
+    if (!(element instanceof Element) || isDocumentLikeScroller(element)) {
+      return;
+    }
+
+    if (scrollContainers.has(element)) {
+      return;
+    }
+
+    if (useCache && isRecentNonScroller(element)) {
+      return;
+    }
+
     if (!isScrollableElement(element)) {
+      scrollCheckCache.set(element, Date.now());
       return;
     }
 
     if (!scrollPositions.has(element)) {
       scrollPositions.set(element, {
         left: element.scrollLeft,
-        top: element.scrollTop
+        top: element.scrollTop,
       });
     }
 
@@ -318,13 +350,13 @@
     scrollContainers.add(element);
     element.addEventListener("scroll", restoreElementScroll, {
       capture: true,
-      passive: true
+      passive: true,
     });
   }
 
   function unregisterScrollContainer(element) {
     element.removeEventListener("scroll", restoreElementScroll, {
-      capture: true
+      capture: true,
     });
     scrollContainers.delete(element);
   }
@@ -418,10 +450,10 @@
     let scanned = 0;
     const walker = document.createTreeWalker(
       rootElement,
-      NodeFilter.SHOW_ELEMENT
+      NodeFilter.SHOW_ELEMENT,
     );
 
-    registerScrollContainer(rootElement);
+    registerScrollContainer(rootElement, false);
 
     while (scanned < MAX_SCAN_COUNT) {
       const node = walker.nextNode();
@@ -429,7 +461,7 @@
         break;
       }
 
-      registerScrollContainer(node);
+      registerScrollContainer(node, false);
       scanned += 1;
     }
   }
@@ -454,7 +486,7 @@
     mutationObserver = new MutationObserver(scheduleContainerScan);
     mutationObserver.observe(document.documentElement, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
 
     periodicScanTimer = setInterval(scanScrollContainers, 2000);
@@ -475,6 +507,15 @@
     }
   }
 
+  function isExtensionOwnedNode(node) {
+    return (
+      node instanceof Element &&
+      (node.id === "anti-scroll-feed-placeholder" ||
+        node.id === "anti-scroll-shield" ||
+        node.id === "anti-scroll-style")
+    );
+  }
+
   function scheduleSurfaceRefresh(records) {
     if (!shieldMatch?.active || shieldMatch.type !== "feed") {
       return;
@@ -482,7 +523,7 @@
 
     for (const record of records) {
       for (const node of record.addedNodes) {
-        if (node instanceof Element) {
+        if (node instanceof Element && !isExtensionOwnedNode(node)) {
           pendingSurfaceRoots.add(node);
         }
       }
@@ -508,9 +549,8 @@
     surfaceObserver = new MutationObserver(scheduleSurfaceRefresh);
     surfaceObserver.observe(document.documentElement, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
-
   }
 
   function stopSurfaceWatch() {
@@ -545,11 +585,7 @@
       }
 
       for (const element of matches) {
-        if (
-          element instanceof HTMLElement &&
-          element.id !== "anti-scroll-feed-placeholder" &&
-          !element.closest("#anti-scroll-feed-placeholder")
-        ) {
+        if (isFeedTarget(element)) {
           targets.push(element);
         }
       }
@@ -592,6 +628,37 @@
     return targets;
   }
 
+  function stillMatchesFeedSelectors(element) {
+    const selectors = FEED_SELECTORS[shieldMatch?.presetId] || [];
+
+    for (const selector of selectors) {
+      try {
+        if (element.matches(selector)) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return false;
+  }
+
+  // Moved nodes always arrive as addedNodes of their new parent, so a targeted
+  // recheck here catches recycled targets that left feed context without
+  // falling back to a full page rescan. Unmark and remark happen inside one
+  // synchronous batch, so nothing flickers mid-frame.
+  function unmarkStaleTargets(root) {
+    for (const target of Array.from(surfaceTargets)) {
+      if (!root.contains(target) || stillMatchesFeedSelectors(target)) {
+        continue;
+      }
+
+      delete target.dataset.antiScrollFeedTarget;
+      surfaceTargets.delete(target);
+    }
+  }
+
   function refreshFeedTargets(addedRoots) {
     if (!shieldMatch?.active || shieldMatch.type !== "feed") {
       return;
@@ -604,6 +671,12 @@
     }
 
     for (const root of addedRoots) {
+      if (!root.isConnected) {
+        continue;
+      }
+
+      unmarkStaleTargets(root);
+
       for (const target of getFeedTargetsWithin(root)) {
         if (surfaceTargets.size >= 80) {
           break;
@@ -632,7 +705,18 @@
       return;
     }
 
-    const firstTarget = targets[0];
+    // Set insertion order follows selector list order, not the page, so pick
+    // whichever target comes first in the document for stable placement.
+    const firstTarget = targets.reduce((top, element) => {
+      if (!top) {
+        return element;
+      }
+
+      return element.compareDocumentPosition(top) &
+        Node.DOCUMENT_POSITION_PRECEDING
+        ? element
+        : top;
+    }, null);
     const parent = targetInsertionParent(firstTarget);
     let placeholder = document.getElementById("anti-scroll-feed-placeholder");
 
@@ -655,13 +739,19 @@
     }
 
     if (firstTarget && firstTarget.parentElement === parent) {
-      if (placeholder.parentElement !== parent || placeholder.nextSibling !== firstTarget) {
+      if (
+        placeholder.parentElement !== parent ||
+        placeholder.nextSibling !== firstTarget
+      ) {
         parent.insertBefore(placeholder, firstTarget);
       }
       return;
     }
 
-    if (placeholder.parentElement !== parent || parent.firstChild !== placeholder) {
+    if (
+      placeholder.parentElement !== parent ||
+      parent.firstChild !== placeholder
+    ) {
       parent.prepend(placeholder);
     }
   }
@@ -721,9 +811,9 @@
           matchType: activeMatch.type || null,
           host: activeMatch.host,
           domain: activeMatch.domain,
-          label: activeMatch.label
+          label: activeMatch.label,
         },
-        () => {}
+        () => {},
       );
       if (result?.catch) {
         result.catch(() => {});
@@ -792,8 +882,7 @@
       document.documentElement.appendChild(shield);
     }
 
-    const title =
-      shieldMatch.type === "all" ? "Page blocked" : "Site blocked";
+    const title = shieldMatch.type === "all" ? "Page blocked" : "Site blocked";
     const detail = "Turn Anti Scroll off to use this page.";
     const content = document.createElement("div");
     const heading = document.createElement("strong");
@@ -856,7 +945,7 @@
 
   function resolveCurrentMatch() {
     const matches = getCandidateUrls().map((url) =>
-      config.matchShield(url, settings)
+      config.matchShield(url, settings),
     );
     return matches.find((match) => match.active) || matches[0];
   }
@@ -948,7 +1037,10 @@
 
     const delay = Math.min(...refreshTimes) - Date.now();
 
-    activeUntilTimer = setTimeout(applyState, Math.min(delay + 250, 2147483647));
+    activeUntilTimer = setTimeout(
+      applyState,
+      Math.min(delay + 250, 2147483647),
+    );
   }
 
   function shouldAllowEvent(event) {
@@ -1007,7 +1099,7 @@
     pointerStart = {
       x: event.clientX,
       y: event.clientY,
-      pointerId: event.pointerId
+      pointerId: event.pointerId,
     };
   }
 
@@ -1027,22 +1119,11 @@
     applyState();
   }
 
-  function patchHistory() {
-    const pushState = history.pushState;
-    const replaceState = history.replaceState;
-
-    history.pushState = function patchedPushState(...args) {
-      const result = pushState.apply(this, args);
-      queueMicrotask(notifyLocationChange);
-      return result;
-    };
-
-    history.replaceState = function patchedReplaceState(...args) {
-      const result = replaceState.apply(this, args);
-      queueMicrotask(notifyLocationChange);
-      return result;
-    };
-  }
+  // Same-document navigations are covered by the navigation API listener
+  // below, the background webNavigation message ("anti-scroll-location-
+  // change"), popstate/hashchange, and the href poll as a final catch-all.
+  // Wrapping history.pushState here would only intercept isolated-world
+  // callers, never the page itself, so it is deliberately not done.
 
   function attachLockListeners() {
     if (lockListenersAttached) {
@@ -1050,51 +1131,54 @@
     }
 
     lockListenersAttached = true;
-    root.addEventListener("wheel", blockEvent, { capture: true, passive: false });
+    root.addEventListener("wheel", blockEvent, {
+      capture: true,
+      passive: false,
+    });
     root.addEventListener("mousewheel", blockEvent, {
       capture: true,
-      passive: false
+      passive: false,
     });
     root.addEventListener("DOMMouseScroll", blockEvent, {
       capture: true,
-      passive: false
+      passive: false,
     });
     root.addEventListener("touchmove", blockEvent, {
       capture: true,
-      passive: false
+      passive: false,
     });
     root.addEventListener("keydown", blockEvent, { capture: true });
     root.addEventListener("mousedown", blockEvent, {
       capture: true,
-      passive: false
+      passive: false,
     });
     root.addEventListener("auxclick", blockEvent, {
       capture: true,
-      passive: false
+      passive: false,
     });
     root.addEventListener("pointerdown", onPointerDown, {
       capture: true,
-      passive: true
+      passive: true,
     });
     root.addEventListener("pointermove", blockEvent, {
       capture: true,
-      passive: false
+      passive: false,
     });
     root.addEventListener("pointerup", onPointerUp, {
       capture: true,
-      passive: true
+      passive: true,
     });
     root.addEventListener("pointercancel", onPointerUp, {
       capture: true,
-      passive: true
+      passive: true,
     });
     root.addEventListener("scroll", restoreAllScrollPositions, {
       capture: true,
-      passive: true
+      passive: true,
     });
     document.addEventListener("scroll", restoreAllScrollPositions, {
       capture: true,
-      passive: true
+      passive: true,
     });
   }
 
@@ -1117,10 +1201,10 @@
     root.removeEventListener("pointerup", onPointerUp, { capture: true });
     root.removeEventListener("pointercancel", onPointerUp, { capture: true });
     root.removeEventListener("scroll", restoreAllScrollPositions, {
-      capture: true
+      capture: true,
     });
     document.removeEventListener("scroll", restoreAllScrollPositions, {
-      capture: true
+      capture: true,
     });
   }
 
@@ -1133,6 +1217,20 @@
   root.setInterval(notifyLocationChange, 500);
   root.addEventListener("popstate", notifyLocationChange);
   root.addEventListener("hashchange", notifyLocationChange);
+
+  // A bfcache restore can land with expired settings or a browser-restored
+  // scroll offset, so re-pin the captured position and re-evaluate state.
+  root.addEventListener("pageshow", (event) => {
+    if (!event.persisted) {
+      return;
+    }
+
+    if (locked) {
+      captureRootScroll();
+    }
+
+    applyState();
+  });
 
   api.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "sync" || !changes[config.SETTINGS_KEY]) {
@@ -1152,7 +1250,7 @@
       sendResponse({
         ok: true,
         match: resolveCurrentMatch(),
-        locked
+        locked,
       });
       return false;
     }
@@ -1166,10 +1264,18 @@
   });
 
   requestMainLockToken();
-  patchHistory();
+
+  // One delayed retry covers injection-order edges where the main-world page
+  // lock missed the first request. Duplicate requests are safe: page-lock
+  // ignores anything after its channel is claimed.
+  root.setTimeout(() => {
+    if (!mainLockToken) {
+      requestMainLockToken();
+    }
+  }, 300);
 
   storageGet(api.storage.sync, {
-    [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS
+    [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS,
   }).then((stored) => {
     settings = config.sanitizeSettings(stored[config.SETTINGS_KEY]);
     applyState();
