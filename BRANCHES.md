@@ -15,6 +15,12 @@ Run this after committing to `main`:
 .\scripts\sync-target-branches.ps1
 ```
 
+On Linux/macOS the bash equivalent is:
+
+```bash
+./scripts/sync-target-branches.sh
+```
+
 Run it from a clean checkout. With `-Push`, it force-updates the target branches
 using `--force-with-lease`.
 
