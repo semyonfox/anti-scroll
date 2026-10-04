@@ -47,6 +47,7 @@
   let mainLockStateEvent = null;
   let lockListenersAttached = false;
   let lastSeenHref = location.href;
+  let settingsChangedSinceInitialRead = false;
 
   const scrollContainers = new Set();
   const scrollPositions = new WeakMap();
@@ -336,16 +337,10 @@
       return;
     }
 
-    if (!scrollPositions.has(element)) {
-      scrollPositions.set(element, {
-        left: element.scrollLeft,
-        top: element.scrollTop,
-      });
-    }
-
-    if (scrollContainers.has(element)) {
-      return;
-    }
+    scrollPositions.set(element, {
+      left: element.scrollLeft,
+      top: element.scrollTop,
+    });
 
     scrollContainers.add(element);
     element.addEventListener("scroll", restoreElementScroll, {
@@ -666,6 +661,7 @@
 
     for (const target of Array.from(surfaceTargets)) {
       if (!target.isConnected) {
+        delete target.dataset.antiScrollFeedTarget;
         surfaceTargets.delete(target);
       }
     }
@@ -1237,6 +1233,7 @@
       return;
     }
 
+    settingsChangedSinceInitialRead = true;
     settings = config.sanitizeSettings(changes[config.SETTINGS_KEY].newValue);
     applyState();
   });
@@ -1277,7 +1274,10 @@
   storageGet(api.storage.sync, {
     [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS,
   }).then((stored) => {
+    if (settingsChangedSinceInitialRead) {
+      return;
+    }
     settings = config.sanitizeSettings(stored[config.SETTINGS_KEY]);
     applyState();
-  });
+  }).catch(() => {});
 })(globalThis);

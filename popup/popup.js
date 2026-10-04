@@ -12,6 +12,8 @@
     tab: null,
     tabMatch: null,
     query: "",
+    saveError: false,
+    loadError: false,
   };
 
   const elements = {};
@@ -82,14 +84,25 @@
   }
 
   async function saveSettings(nextSettings) {
-    state.settings = config.sanitizeSettings(nextSettings);
+    if (state.loadError) {
+      return;
+    }
+
+    const previousSettings = state.settings;
+    const updatedSettings = config.sanitizeSettings(nextSettings);
+    state.settings = updatedSettings;
+    state.saveError = false;
     render();
     try {
       await storageSet(api.storage.sync, {
-        [config.SETTINGS_KEY]: state.settings,
+        [config.SETTINGS_KEY]: updatedSettings,
       });
     } catch {
-      // keep showing what the user asked for; storage.onChanged will correct us if a write lands
+      if (state.settings === updatedSettings) {
+        state.settings = previousSettings;
+        state.saveError = true;
+        render();
+      }
     }
   }
 
@@ -196,6 +209,18 @@
     const match = state.tabMatch;
     elements.currentHost.textContent = currentHost() || "No web page selected";
     elements.statusPill.className = "pill";
+
+    if (state.loadError) {
+      elements.statusPill.textContent = "Load failed";
+      elements.currentStatus.textContent = "Could not load settings";
+      return;
+    }
+
+    if (state.saveError) {
+      elements.statusPill.textContent = "Save failed";
+      elements.currentStatus.textContent = "Could not save settings";
+      return;
+    }
 
     if (state.settings.mode === config.MODES.DISABLED) {
       elements.statusPill.textContent = "Off";
@@ -741,10 +766,9 @@
         storedStatus[config.REGISTRATION_STATUS_KEY],
       );
       state.tab = tab;
-    } catch (error) {
-      // fall back to defaults but say why the popup looks empty
-      elements.currentHost.textContent = "Could not load settings";
-      elements.currentStatus.textContent = `Something went wrong: ${error?.message || error}`;
+      state.loadError = false;
+    } catch {
+      state.loadError = true;
     }
     render();
   }

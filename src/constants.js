@@ -376,7 +376,9 @@
           ? incoming.allowMessagingPages
           : DEFAULT_SETTINGS.allowMessagingPages,
       presets: presetState,
-      customDomains: uniqueDomains(incoming.customDomains || []),
+      customDomains: uniqueDomains(
+        Array.isArray(incoming.customDomains) ? incoming.customDomains : [],
+      ),
       pausedUntilByHost,
     };
   }
@@ -751,43 +753,53 @@
   }
 
   function storageGet(area, defaults) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (value) => {
         if (!settled) {
           settled = true;
-          resolve(value);
+          const error = getApi()?.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || String(error)));
+          } else {
+            resolve(value);
+          }
         }
       };
 
       try {
         const result = area.get(defaults, finish);
         if (result?.then) {
-          result.then(finish, () => finish(defaults));
+          result.then(finish, reject);
         }
-      } catch {
-        finish(defaults);
+      } catch (error) {
+        reject(error);
       }
     });
   }
 
   function storageSet(area, value) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       let settled = false;
       const finish = () => {
         if (!settled) {
           settled = true;
-          resolve();
+          const error = getApi()?.runtime?.lastError;
+          if (error) {
+            reject(new Error(error.message || String(error)));
+          } else {
+            resolve();
+          }
         }
       };
 
       try {
         const result = area.set(value, finish);
         if (result?.then) {
-          result.then(finish, finish);
+          result.then(finish, reject);
         }
-      } catch {
-        finish();
+      } catch (error) {
+        reject(error);
       }
     });
   }

@@ -62,6 +62,10 @@ node --check src/content.js
 node --check popup/popup.js
 node scripts/smoke-test.js
 node scripts/background-message-test.js
+node scripts/storage-behavior-test.js
+node scripts/content-initialization-test.js
+node scripts/content-dom-behavior-test.js
+node scripts/popup-save-test.js
 python3 -m json.tool manifest.json >/dev/null
 python3 -m json.tool manifest.chromium.json >/dev/null
 python3 -m json.tool manifest.firefox.json >/dev/null
