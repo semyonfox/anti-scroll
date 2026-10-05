@@ -14,6 +14,10 @@
     query: "",
     saveError: false,
     loadError: false,
+    loading: true,
+    saving: false,
+    actionError: "",
+    feedback: "",
   };
 
   const elements = {};
@@ -26,20 +30,24 @@
 
   function sendMessage(message) {
     return new Promise((resolve) => {
-      const result = api.runtime.sendMessage(message, (response) =>
-        resolve(response || undefined),
-      );
-      if (result?.then) {
-        result.then(resolve, () => resolve());
+      try {
+        const result = api.runtime.sendMessage(message, (response) =>
+          resolve(response || undefined),
+        );
+        if (result?.then) {
+          result.then(resolve, () => resolve());
+        }
+      } catch {
+        resolve();
       }
     });
   }
 
   function queryTabs(queryInfo) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const result = api.tabs.query(queryInfo, resolve);
       if (result?.then) {
-        result.then(resolve);
+        result.then(resolve, reject);
       }
     });
   }
@@ -50,9 +58,13 @@
     }
 
     return new Promise((resolve) => {
-      const result = api.permissions.request(permissions, resolve);
-      if (result?.then) {
-        result.then(resolve);
+      try {
+        const result = api.permissions.request(permissions, resolve);
+        if (result?.then) {
+          result.then(resolve, () => resolve(false));
+        }
+      } catch {
+        resolve(false);
       }
     });
   }
@@ -75,7 +87,13 @@
       return true;
     }
 
-    return requestPermissions({ origins });
+    const granted = await requestPermissions({ origins });
+    if (!granted) {
+      state.actionError = "Permission was not granted. Your settings are unchanged. Try the action again to grant access.";
+      root.AntiScrollTelemetry?.error("permission_failed");
+      render();
+    }
+    return granted;
   }
 
   async function getActiveTab() {
@@ -84,24 +102,54 @@
   }
 
   async function saveSettings(nextSettings) {
-    if (state.loadError) {
-      return;
+    if (state.loadError || state.loading) {
+      return false;
+    }
+    if (state.saving) {
+      render();
+      return false;
     }
 
+    const focused = document.activeElement;
+    const focusId = focused?.id;
+    const removeDomain = focused?.dataset?.removeDomain;
+    const addDomain = focused?.dataset?.addDomain;
     const previousSettings = state.settings;
     const updatedSettings = config.sanitizeSettings(nextSettings);
     state.settings = updatedSettings;
     state.saveError = false;
+    state.saving = true;
+    state.actionError = "";
+    state.feedback = "";
     render();
     try {
       await storageSet(api.storage.sync, {
         [config.SETTINGS_KEY]: updatedSettings,
       });
+      state.feedback = "Settings saved.";
+      return true;
     } catch {
       if (state.settings === updatedSettings) {
         state.settings = previousSettings;
         state.saveError = true;
         render();
+      }
+      root.AntiScrollTelemetry?.error("storage_failed");
+      return false;
+    } finally {
+      state.saving = false;
+      const restoreFocus = !document.activeElement ||
+        document.activeElement === document.body ||
+        document.activeElement === document.documentElement ||
+        document.activeElement.id === focusId;
+      render();
+      if (restoreFocus && (focusId || removeDomain || addDomain)) {
+        const target = focusId ? $(focusId) :
+          Array.from(elements.siteList.querySelectorAll?.("button") || []).find(
+            (button) => (removeDomain && button.dataset.removeDomain === removeDomain) ||
+              (addDomain && button.dataset.addDomain === addDomain),
+          );
+        (target || elements.siteSearch).focus?.({ preventScroll: true });
       }
     }
   }
@@ -210,6 +258,12 @@
     elements.currentHost.textContent = currentHost() || "No web page selected";
     elements.statusPill.className = "pill";
 
+    if (state.loading) {
+      elements.statusPill.textContent = "Loading";
+      elements.currentStatus.textContent = "Loading saved settings";
+      return;
+    }
+
     if (state.loadError) {
       elements.statusPill.textContent = "Load failed";
       elements.currentStatus.textContent = "Could not load settings";
@@ -274,7 +328,7 @@
     if (match?.selected && match.reason === "not-feed-like") {
       elements.statusPill.textContent = "Selected";
       elements.statusPill.classList.add("selected");
-      elements.currentStatus.textContent = "Feed areas are hidden";
+      elements.currentStatus.textContent = "This page is allowed; its feed routes stay blocked";
       return;
     }
 
@@ -288,6 +342,11 @@
   }
 
   function renderModes() {
+    elements.modeHint.textContent = state.settings.mode === config.MODES.ALL
+      ? "All sites are blocked. You can still type in fields when allowed. Site selections do not limit this mode."
+      : state.settings.mode === config.MODES.DISABLED
+        ? "Blocking is off. Your site selections are kept for next time."
+        : "Presets hide feeds; custom domains block the whole site.";
     for (const button of [
       elements.modeDisabled,
       elements.modeSelected,
@@ -309,7 +368,7 @@
 
     elements.timerStatus.textContent = activeUntil
       ? "Timer ended"
-      : "No timer set";
+      : state.settings.mode === config.MODES.DISABLED ? "Start also turns on Selected sites mode" : "No time limit. Blocking stays on until you turn it off.";
     elements.clearTimer.disabled = !activeUntil;
   }
 
@@ -330,7 +389,7 @@
     elements.pauseCurrent.disabled = !canPause;
     elements.pauseCurrent.textContent = pausedUntil
       ? "Resume"
-      : `${PAUSE_MINUTES}m Pause`;
+      : `Pause ${PAUSE_MINUTES} min`;
     elements.pauseCurrent.title = pausedUntil
       ? `Resume ${currentHost()}`
       : `Pause ${currentHost()} for ${PAUSE_MINUTES} minutes`;
@@ -349,7 +408,7 @@
     const title = document.createElement("strong");
     const detail = document.createElement("small");
     const remove = document.createElement("button");
-    const checkboxId = `site-${item.type}-${item.id.replace(/[^a-z0-9_-]/gi, "-")}`;
+    const checkboxId = `site-${item.type}-${item.id}`;
 
     row.className = "site-row";
     row.setAttribute("role", "listitem");
@@ -360,7 +419,7 @@
     checkbox.dataset.itemId = item.id;
     checkbox.setAttribute(
       "aria-label",
-      `${item.selected ? "Disable" : "Enable"} ${item.label}`,
+      item.type === "custom" ? `Remove ${item.label} from selected sites` : item.label,
     );
     text.className = "site-label";
     text.htmlFor = checkboxId;
@@ -385,6 +444,11 @@
   }
 
   function renderSiteList() {
+    const focused = document.activeElement;
+    const hadFocus = Boolean(focused && elements.siteList.contains?.(focused));
+    const focusId = hadFocus ? focused.id : "";
+    const removeDomain = hadFocus ? focused.dataset.removeDomain : "";
+    const scrollTop = elements.siteList.scrollTop;
     const items = filteredItems();
     const fragment = document.createDocumentFragment();
 
@@ -407,24 +471,51 @@
         : `No matches for "${query}"`;
       empty.append(text);
 
-      if (domain && !existingCustom && !existingPreset) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = `Add ${domain}`;
-        button.dataset.addDomain = domain;
-        empty.append(button);
-      }
-
       fragment.append(empty);
     }
 
+    if (domain && !existingCustom && !existingPreset) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `Add ${domain}`;
+      button.dataset.addDomain = domain;
+      const addRow = document.createElement("div");
+      addRow.className = "empty-row";
+      addRow.setAttribute("role", "listitem");
+      addRow.append(button);
+      fragment.append(addRow);
+    }
+
     elements.siteList.replaceChildren(fragment);
+    elements.siteList.scrollTop = scrollTop;
+    if (hadFocus) {
+      const replacement = focusId ? $(focusId) : Array.from(elements.siteList.querySelectorAll("button")).find((button) => button.dataset.removeDomain === removeDomain);
+      (replacement || elements.siteSearch).focus({ preventScroll: true });
+    }
+    elements.searchResults.textContent = state.query ? `${items.length} matching sites${domain && !existingCustom && !existingPreset ? "; domain can be added" : ""}` : "";
   }
 
   function renderOptions() {
     elements.strictFeeds.checked = state.settings.strictFeeds;
     elements.allowEditableFields.checked = state.settings.allowEditableFields;
     elements.allowMessagingPages.checked = state.settings.allowMessagingPages;
+    elements.anonymousTelemetryEnabled.checked = state.settings.anonymousTelemetryEnabled;
+  }
+
+  function renderFeedback() {
+    elements.actionMessage.textContent = state.loadError
+      ? "Could not load settings. Retry before making changes to keep your saved choices."
+      : state.actionError || (state.saveError ? "Could not save settings. Your previous choices were restored. Try the action again." : "");
+    elements.actionFeedback.textContent = state.saving ? "Saving settings..." : state.feedback;
+    elements.retryLoad.hidden = !state.loadError;
+    elements.retryLoad.disabled = state.loading;
+    const unavailable = state.loading || state.loadError || state.saving;
+    for (const id of ["modeDisabled", "modeSelected", "modeAll", "siteSearch", "durationMinutes", "startTimer", "selectAll", "clearSelected", "strictFeeds", "allowEditableFields", "allowMessagingPages", "resetStats"]) {
+      elements[id].disabled = unavailable;
+    }
+    for (const control of elements.siteList.querySelectorAll?.("input, button") || []) control.disabled = unavailable;
+    if (unavailable) for (const id of ["clearTimer", "pauseCurrent", "toggleCurrent", "grantMissingPermission"]) elements[id].disabled = true;
+    elements.anonymousTelemetryEnabled.disabled = unavailable || !root.AntiScrollTelemetry?.configured;
   }
 
   function analyticsEntries(counts, labelForKey) {
@@ -525,6 +616,7 @@
     renderSiteList();
     renderOptions();
     renderStats();
+    renderFeedback();
   }
 
   async function setMode(event) {
@@ -543,10 +635,15 @@
   }
 
   async function startTimer() {
-    const minutes = Math.max(
-      1,
-      Math.min(1440, Number.parseInt(elements.durationMinutes.value, 10) || 30),
-    );
+    const minutes = Number(elements.durationMinutes.value);
+    const valid = Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440;
+    elements.durationMinutes.setAttribute("aria-invalid", String(!valid));
+    if (!valid) {
+      state.actionError = "Enter a whole number of minutes between 1 and 1440.";
+      renderFeedback();
+      elements.durationMinutes.focus();
+      return;
+    }
     elements.durationMinutes.value = String(minutes);
     await saveSettings({
       ...state.settings,
@@ -636,6 +733,10 @@
     }
 
     await sendMessage({ type: "anti-scroll-sync-content-scripts" });
+    state.actionError = "";
+    state.saveError = false;
+    state.feedback = "Permission granted. Checking site access...";
+    renderFeedback();
   }
 
   async function toggleSite(event) {
@@ -665,20 +766,24 @@
   }
 
   async function addCustomDomain(domain) {
+    if (state.loading || state.loadError || state.saving) return;
     if (!(await ensureHostPermission(config.getDomainMatchPatterns(domain)))) {
       return;
     }
 
-    await saveSettings({
+    const saved = await saveSettings({
       ...state.settings,
       customDomains: config.uniqueDomains([
         ...state.settings.customDomains,
         domain,
       ]),
     });
+    if (!saved) return;
     elements.siteSearch.value = "";
     state.query = "";
+    state.feedback = `Added ${domain} to Selected sites. Custom domains block the whole site.`;
     render();
+    elements.siteSearch.focus();
   }
 
   async function clickSiteList(event) {
@@ -731,13 +836,23 @@
     const response = await sendMessage({ type: "anti-scroll-reset-analytics" });
     // no response means the write failed; keep the real numbers instead of flashing zeros
     if (!response?.analytics) {
+      state.actionError = "Could not reset local activity. Your counts are unchanged. Try again.";
+      root.AntiScrollTelemetry?.error("storage_failed");
+      renderFeedback();
       return;
     }
+    state.actionError = "";
+    state.saveError = false;
     state.analytics = config.sanitizeAnalytics(response.analytics);
     renderStats();
+    state.feedback = "Local activity reset.";
+    renderFeedback();
   }
 
   async function loadInitialState() {
+    const retryHadFocus = document.activeElement === elements.retryLoad;
+    state.loading = true;
+    render();
     try {
       const [storedSettings, storedAnalytics, storedStatus, tab] =
         await Promise.all([
@@ -769,8 +884,14 @@
       state.loadError = false;
     } catch {
       state.loadError = true;
+      root.AntiScrollTelemetry?.error("storage_failed");
     }
+    state.loading = false;
     render();
+    if (!state.loadError) {
+      if (retryHadFocus) elements.modeSelected.focus({ preventScroll: true });
+      root.AntiScrollTelemetry?.open();
+    }
   }
 
   function sanitizeRegistrationStatus(status) {
@@ -808,6 +929,12 @@
       "analyticsBreakdown",
       "attemptTotal",
       "resetStats",
+      "modeHint",
+      "actionMessage",
+      "actionFeedback",
+      "retryLoad",
+      "searchResults",
+      "anonymousTelemetryEnabled",
     ]) {
       elements[id] = $(id);
     }
@@ -823,6 +950,8 @@
     }
 
     elements.startTimer.addEventListener("click", startTimer);
+    elements.retryLoad.addEventListener("click", loadInitialState);
+    elements.anonymousTelemetryEnabled.addEventListener("change", toggleOption);
     elements.durationMinutes.addEventListener("keydown", async (event) => {
       if (event.key !== "Enter") {
         return;
@@ -838,6 +967,9 @@
     elements.pauseCurrent.addEventListener("click", togglePauseCurrentSite);
     elements.toggleCurrent.addEventListener("click", toggleCurrentSite);
     elements.siteSearch.addEventListener("input", () => {
+      elements.siteSearch.setAttribute("aria-invalid", "false");
+      state.actionError = "";
+      renderFeedback();
       state.query = elements.siteSearch.value;
       renderSiteList();
     });
@@ -870,6 +1002,11 @@
         state.settings.customDomains.includes(domain) ||
         isPresetDomain(domain)
       ) {
+        if (!domain) {
+          state.actionError = "Enter a domain such as example.com, or select a site from the results.";
+          elements.siteSearch.setAttribute("aria-invalid", "true");
+          renderFeedback();
+        }
         return;
       }
 
@@ -910,9 +1047,11 @@
     });
 
     setInterval(() => {
+      refreshMatch();
       renderStatus();
       renderTimer();
       renderPauseButton();
+      renderFeedback();
     }, 15000);
   }
 

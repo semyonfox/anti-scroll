@@ -1,3 +1,5 @@
+html { font-size: 13px; }
+
 :root {
   color-scheme: light dark;
   --bg: #f4f6f5;
@@ -41,11 +43,12 @@
 
 body {
   width: 360px;
+  max-width: 100%;
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font:
-    13px/1.4 system-ui,
+    1rem/1.45 system-ui,
     -apple-system,
     "Segoe UI",
     Roboto,
@@ -133,8 +136,9 @@ input[type="checkbox"]:focus {
 input[type="number"]:focus,
 input[type="search"]:focus {
   border-color: var(--accent);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--ring);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 :focus-visible {
@@ -142,12 +146,6 @@ input[type="search"]:focus {
   outline-offset: 2px;
 }
 
-@supports selector(:focus-visible) {
-  button:focus:not(:focus-visible),
-  input[type="checkbox"]:focus:not(:focus-visible) {
-    outline: none;
-  }
-}
 
 input[type="checkbox"] {
   width: 16px;
@@ -202,7 +200,7 @@ p {
 }
 
 h1 {
-  font-size: 15px;
+  font-size: 1.154rem;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
@@ -212,7 +210,7 @@ h1 {
   margin-top: 1px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.923rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -228,7 +226,7 @@ h1 {
   border-radius: 999px;
   background: var(--soft);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.923rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -246,7 +244,7 @@ h1 {
 
 .mode-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6em), 1fr));
   gap: 4px;
   padding: 4px;
 }
@@ -281,7 +279,7 @@ h1 {
 .timer-row label,
 .timer-row .unit {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.923rem;
 }
 
 .timer-row input {
@@ -299,7 +297,7 @@ h1 {
 .timer-status {
   margin-top: 5px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.923rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -340,7 +338,7 @@ h1 {
 
 .sites-head h2 {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.923rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -394,7 +392,7 @@ h1 {
   display: block;
   overflow: hidden;
   color: var(--text);
-  font-size: 13px;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -405,7 +403,7 @@ h1 {
   display: block;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.923rem;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -415,7 +413,7 @@ h1 {
   min-width: 36px;
   min-height: 36px;
   padding: 0;
-  font-size: 14px;
+  font-size: 1.077rem;
   line-height: 1;
 }
 
@@ -458,7 +456,7 @@ h1 {
 .analytics-head h2,
 .analytics-group h3 {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.923rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -467,7 +465,7 @@ h1 {
 .analytics-last-at {
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.923rem;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -511,7 +509,7 @@ h1 {
 .analytics-empty {
   padding: 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.923rem;
 }
 
 .footer {
@@ -525,7 +523,7 @@ h1 {
 }
 
 .stat {
-  font-size: 12px;
+  font-size: 0.923rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -545,4 +543,162 @@ h1 {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+button, button.plain, input[type="number"], input[type="search"] {
+  min-height: 40px;
+}
+
+button {
+  padding-block: 6px;
+}
+
+input[type="number"]:focus-visible, input[type="search"]:focus-visible, input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.timer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.timer-row input {
+  width: 4.5em;
+}
+
+.timer-row .primary {
+  margin-inline-start: auto;
+}
+
+.timer-status {
+  font-variant-numeric: tabular-nums;
+}
+
+.current-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.current-row #currentStatus {
+  white-space: normal;
+  overflow: visible;
+}
+
+.current-actions, .sites-actions, .sites-head {
+  flex-wrap: wrap;
+}
+
+.current-actions {
+  justify-content: flex-end;
+}
+
+.site-row {
+  min-height: 44px;
+}
+
+.site-label {
+  padding-block: 6px;
+}
+
+.site-row strong, .site-row small, .analytics-row span, .analytics-last-at {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.analytics-head {
+  flex-wrap: wrap;
+}
+
+.analytics-last-at {
+  text-align: start;
+}
+
+.hint {
+  margin: 0;
+  padding: 0 10px 8px;
+  color: var(--muted);
+  font-size: 0.923rem;
+  line-height: 1.5;
+}
+
+.shell > .hint {
+  padding: 0 2px;
+}
+
+.feedback:not(:has(p:not(:empty))):has(#retryLoad[hidden]) {
+  display: none;
+}
+
+.feedback:has(p:not(:empty)) {
+  display: grid;
+  gap: 6px;
+}
+
+.feedback p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+#actionMessage {
+  color: var(--danger);
+}
+
+#actionMessage:empty, #actionFeedback:empty {
+  display: none;
+}
+
+button[hidden] {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  button, button.plain, input[type="number"], input[type="search"] {
+    min-height: 44px;
+  }
+}
+
+.empty-row {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.empty-row button {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.feedback p {
+  overflow-wrap: anywhere;
+}
+
+@media (pointer: coarse) {
+  .options label, .site-row .remove {
+    min-height: 44px;
+  }
+  .site-row .remove {
+    min-width: 44px;
+  }
+}
+
+.shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.footer, .topbar {
+  flex-wrap: wrap;
+}
+
+.topbar-text {
+  flex: 1 1 8rem;
+}
+
+.muted {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

@@ -35,6 +35,9 @@ const document = {
 };
 let failWrite = true;
 let failRead = false;
+let holdWrite = false;
+let finishWrite;
+let refreshTick;
 const stored = { [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS };
 const area = {
   get(defaults, callback) {
@@ -47,6 +50,7 @@ const area = {
     callback({ ...defaults, ...stored });
   },
   set(value, callback) {
+    if (holdWrite) { finishWrite = () => { Object.assign(stored, value); callback(); }; return; }
     if (failWrite) {
       chrome.runtime.lastError = { message: "synthetic quota failure" };
       callback();
@@ -70,7 +74,7 @@ const source = fs.readFileSync(path.join(__dirname, "../popup/popup.js"), "utf8"
 vm.runInNewContext(source, {
   AntiScrollConfig: config,
   document,
-  setInterval() {},
+  setInterval(callback) { refreshTick = callback; },
 });
 document.listeners.DOMContentLoaded();
 document.getElementById("modeSelected").dataset.mode = "selected";
@@ -91,6 +95,18 @@ document.getElementById("modeAll").dataset.mode = "all";
   await off.listeners.click({ currentTarget: off });
   assert.equal(stored[config.SETTINGS_KEY].mode, config.MODES.DISABLED);
   assert.equal(document.getElementById("statusPill").textContent, "Off");
+
+  holdWrite = true;
+  document.getElementById("durationMinutes").value = "30";
+  const timerSave = document.getElementById("startTimer").listeners.click();
+  assert.equal(document.getElementById("clearTimer").disabled, true);
+  refreshTick();
+  assert.equal(document.getElementById("clearTimer").disabled, true, "timer refresh must not reopen actions while saving");
+  assert.equal(document.getElementById("siteSearch").disabled, true);
+  finishWrite();
+  await timerSave;
+  assert.equal(document.getElementById("clearTimer").disabled, false);
+  holdWrite = false;
 
   stored[config.SETTINGS_KEY] = config.DEFAULT_SETTINGS;
   failRead = true;

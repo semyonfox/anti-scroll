@@ -107,6 +107,12 @@ if (defaultPresets.reddit !== true) {
 if (config.sanitizeSettings({ activeUntil: -5 }).activeUntil !== null) {
   throw new Error("non-positive activeUntil should become null");
 }
+if (
+  config.sanitizeSettings({ customDomains: "example.com" }).customDomains.length !==
+  0
+) {
+  throw new Error("malformed customDomains should not break settings loading");
+}
 
 const hostileCounts = config.sanitizeAnalytics({
   total: -3,

@@ -87,6 +87,7 @@
   );
 
   const DEFAULT_SETTINGS = {
+    anonymousTelemetryEnabled: false,
     mode: MODES.SELECTED,
     enabled: true,
     activeUntil: null,
@@ -356,6 +357,7 @@
     }
 
     return {
+      anonymousTelemetryEnabled: incoming.anonymousTelemetryEnabled === true,
       mode,
       enabled: mode !== MODES.DISABLED,
       activeUntil,
