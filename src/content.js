@@ -47,6 +47,8 @@
   let mainLockStateEvent = null;
   let lockListenersAttached = false;
   let lastSeenHref = location.href;
+  let settingsChangedSinceInitialRead = false;
+  let previousPageFocus = null;
 
   const scrollContainers = new Set();
   const scrollPositions = new WeakMap();
@@ -113,16 +115,19 @@
         inset: 0 !important;
         z-index: 2147483647 !important;
         display: grid !important;
-        place-items: center !important;
+        place-items: safe center !important;
+        box-sizing: border-box !important;
+        overflow: auto !important;
         padding: 24px !important;
         background: #f7f8f8 !important;
         color: #15191d !important;
         font: 500 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
       }
 
-      #anti-scroll-shield strong {
+      #anti-scroll-shield h1 {
         display: block !important;
         margin-bottom: 6px !important;
+        margin-top: 0 !important;
         font-size: 18px !important;
         line-height: 1.2 !important;
         letter-spacing: 0 !important;
@@ -157,9 +162,10 @@
         text-align: center !important;
       }
 
-      #anti-scroll-feed-placeholder strong {
+      #anti-scroll-feed-placeholder h2 {
         display: block !important;
         margin-bottom: 6px !important;
+        margin-top: 0 !important;
         font-size: 18px !important;
         line-height: 1.2 !important;
         letter-spacing: 0 !important;
@@ -262,10 +268,17 @@
     );
   }
 
+  function isShieldTarget(target) {
+    const shield = document.getElementById("anti-scroll-shield");
+    return Boolean(shield && target instanceof Element && shield.contains(target));
+  }
+
   function isScrollableElement(element) {
     if (!(element instanceof Element) || isDocumentLikeScroller(element)) {
       return false;
     }
+
+    if (isShieldTarget(element)) return false;
 
     const style = root.getComputedStyle(element);
     const canScrollY =
@@ -336,16 +349,10 @@
       return;
     }
 
-    if (!scrollPositions.has(element)) {
-      scrollPositions.set(element, {
-        left: element.scrollLeft,
-        top: element.scrollTop,
-      });
-    }
-
-    if (scrollContainers.has(element)) {
-      return;
-    }
+    scrollPositions.set(element, {
+      left: element.scrollLeft,
+      top: element.scrollTop,
+    });
 
     scrollContainers.add(element);
     element.addEventListener("scroll", restoreElementScroll, {
@@ -666,6 +673,7 @@
 
     for (const target of Array.from(surfaceTargets)) {
       if (!target.isConnected) {
+        delete target.dataset.antiScrollFeedTarget;
         surfaceTargets.delete(target);
       }
     }
@@ -707,13 +715,14 @@
 
     // Set insertion order follows selector list order, not the page, so pick
     // whichever target comes first in the document for stable placement.
-    const firstTarget = targets.reduce((top, element) => {
+    const outerTargets = targets.filter((target) => !targets.some((other) => other !== target && other.contains(target)));
+    const firstTarget = outerTargets.reduce((top, element) => {
       if (!top) {
         return element;
       }
 
       return element.compareDocumentPosition(top) &
-        Node.DOCUMENT_POSITION_PRECEDING
+        Node.DOCUMENT_POSITION_FOLLOWING
         ? element
         : top;
     }, null);
@@ -725,15 +734,16 @@
       placeholder.id = "anti-scroll-feed-placeholder";
       placeholder.setAttribute("role", "status");
       placeholder.setAttribute("aria-live", "polite");
+      placeholder.setAttribute("tabindex", "-1");
     }
 
     if (!placeholder.firstChild) {
       const content = document.createElement("div");
-      const heading = document.createElement("strong");
+      const heading = document.createElement("h2");
       const copy = document.createElement("p");
 
-      heading.textContent = "Feed blocked";
-      copy.textContent = "The rest of the page is still available.";
+      heading.textContent = "Feed hidden by Anti Scroll";
+      copy.textContent = "The rest of the page is still available. Open Anti Scroll in the browser toolbar and choose Pause 15 min to show this feed temporarily.";
       content.append(heading, copy);
       placeholder.replaceChildren(content);
     }
@@ -764,6 +774,7 @@
 
     ensureStyle();
     hideFullPageShield();
+    const focused = document.activeElement;
     document.documentElement.dataset.antiScrollFeedSurface = "true";
     document.documentElement.dataset.antiScrollFeedPreset =
       shieldMatch.presetId || "";
@@ -777,6 +788,9 @@
     }
 
     insertFeedPlaceholder(targets);
+    if (focused && targets.some((target) => target.contains(focused))) {
+      document.getElementById("anti-scroll-feed-placeholder")?.focus({ preventScroll: true });
+    }
     pauseMediaOnShield();
     startSurfaceWatch();
   }
@@ -875,17 +889,20 @@
 
     let shield = document.getElementById("anti-scroll-shield");
     if (!shield) {
+      previousPageFocus = document.activeElement;
       shield = document.createElement("div");
       shield.id = "anti-scroll-shield";
       shield.setAttribute("role", "status");
       shield.setAttribute("aria-live", "polite");
+      shield.setAttribute("tabindex", "-1");
       document.documentElement.appendChild(shield);
+      shield.focus({ preventScroll: true });
     }
 
     const title = shieldMatch.type === "all" ? "Page blocked" : "Site blocked";
-    const detail = "Turn Anti Scroll off to use this page.";
+    const detail = "Open Anti Scroll in the browser toolbar and choose Pause 15 min to use this page temporarily, or Off to stop blocking.";
     const content = document.createElement("div");
-    const heading = document.createElement("strong");
+    const heading = document.createElement("h1");
     const copy = document.createElement("p");
 
     heading.textContent = title;
@@ -900,7 +917,11 @@
       delete document.documentElement.dataset.antiScrollShield;
     }
 
-    document.getElementById("anti-scroll-shield")?.remove();
+    const shield = document.getElementById("anti-scroll-shield");
+    const restoreFocus = shield?.contains(document.activeElement);
+    shield?.remove();
+    if (restoreFocus && previousPageFocus?.isConnected) previousPageFocus.focus({ preventScroll: true });
+    previousPageFocus = null;
   }
 
   function hideShield() {
@@ -1044,6 +1065,8 @@
   }
 
   function shouldAllowEvent(event) {
+    if (isShieldTarget(event.target)) return true;
+
     if (!locked || !activeMatch) {
       return true;
     }
@@ -1237,6 +1260,7 @@
       return;
     }
 
+    settingsChangedSinceInitialRead = true;
     settings = config.sanitizeSettings(changes[config.SETTINGS_KEY].newValue);
     applyState();
   });
@@ -1277,7 +1301,10 @@
   storageGet(api.storage.sync, {
     [config.SETTINGS_KEY]: config.DEFAULT_SETTINGS,
   }).then((stored) => {
+    if (settingsChangedSinceInitialRead) {
+      return;
+    }
     settings = config.sanitizeSettings(stored[config.SETTINGS_KEY]);
     applyState();
-  });
+  }).catch(() => {});
 })(globalThis);
