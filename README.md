@@ -28,6 +28,22 @@ Run both target builds:
 .\scripts\verify.ps1
 ```
 
+PowerShell is required for that command. On Linux or macOS without PowerShell,
+run the local JavaScript checks from the repository root:
+
+```sh
+for file in src/*.js popup/popup.js scripts/*.js; do node --check "$file" || exit 1; done
+node scripts/smoke-test.js
+node scripts/background-message-test.js
+node scripts/storage-behavior-test.js
+node scripts/content-initialization-test.js
+node scripts/content-dom-behavior-test.js
+node scripts/popup-save-test.js
+```
+
+The JavaScript checks do not package the browser builds. `verify.ps1` also
+copies each target manifest and source files into `dist/`.
+
 Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromium` and `firefox` are kept refreshed from it.
 
 ## What It Does

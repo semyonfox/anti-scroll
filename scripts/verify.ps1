@@ -19,8 +19,16 @@ try {
   node --check src/content.js
   node --check popup/popup.js
   node --check scripts/background-message-test.js
+  node --check scripts/storage-behavior-test.js
+  node --check scripts/content-initialization-test.js
+  node --check scripts/content-dom-behavior-test.js
+  node --check scripts/popup-save-test.js
   node scripts/smoke-test.js
   node scripts/background-message-test.js
+  node scripts/storage-behavior-test.js
+  node scripts/content-initialization-test.js
+  node scripts/content-dom-behavior-test.js
+  node scripts/popup-save-test.js
 
   & $PSScriptRoot/build-extension.ps1 -Target chromium | Out-Host
   & $PSScriptRoot/build-extension.ps1 -Target firefox | Out-Host
