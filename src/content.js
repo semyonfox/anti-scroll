@@ -1142,11 +1142,9 @@
     applyState();
   }
 
-  // Same-document navigations are covered by the navigation API listener
-  // below, the background webNavigation message ("anti-scroll-location-
-  // change"), popstate/hashchange, and the href poll as a final catch-all.
-  // Wrapping history.pushState here would only intercept isolated-world
-  // callers, never the page itself, so it is deliberately not done.
+  // same-document changes use navigation events and background webNavigation
+  // messages, with slower URL polling only when the navigation API is absent
+  // history wrappers here would only intercept isolated-world callers
 
   function attachLockListeners() {
     if (lockListenersAttached) {
@@ -1232,12 +1230,12 @@
   }
 
   if (root.navigation?.addEventListener) {
-    root.navigation.addEventListener("navigate", () => {
-      queueMicrotask(notifyLocationChange);
-    });
+    // currententrychange runs after the URL commits, including push/replaceState
+    root.navigation.addEventListener("currententrychange", notifyLocationChange);
+  } else {
+    root.setInterval(notifyLocationChange, 2000);
   }
 
-  root.setInterval(notifyLocationChange, 500);
   root.addEventListener("popstate", notifyLocationChange);
   root.addEventListener("hashchange", notifyLocationChange);
 
