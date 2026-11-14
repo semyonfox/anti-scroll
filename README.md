@@ -94,3 +94,21 @@ selected, and All sites mode still blocks every site.
 
 Custom domains keep full-page blocking. Sites without known entry-point
 selectors fail open in Entry points mode.
+
+## Recurring focus windows
+
+Add up to 20 windows using local weekdays and start/end times. An end time
+earlier than the start means the following day. Equal times are rejected.
+Windows sync with your settings and use each browser's local time zone.
+
+An explicit manual disable or site pause always wins. During a window, shields
+are active for the configured sites even if a one-off timer has ended. Outside
+windows normal settings apply. With no timer, Selected sites and All sites stay
+on between windows too. To use windows alone, set a short timer and let it end.
+An elapsed timer is retained while windows exist so the next window can resume
+blocking. Removing all windows restores normal timer expiry.
+
+The badge shows SCH during a window and the popup shows whether a window is
+active, overridden by Off, or when the next boundary occurs. Overnight windows
+belong to their start day. Browser alarms update the badge at boundaries and
+open pages refresh their shields without needing a reload.

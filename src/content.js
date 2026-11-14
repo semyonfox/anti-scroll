@@ -1054,6 +1054,8 @@
     activeUntilTimer = null;
 
     const refreshTimes = [];
+    const nextScheduleChange = config.getScheduleState?.(settings).nextChange;
+    if (nextScheduleChange) refreshTimes.push(nextScheduleChange);
 
     if (settings.activeUntil && settings.activeUntil > Date.now()) {
       refreshTimes.push(settings.activeUntil);

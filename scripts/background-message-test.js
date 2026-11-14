@@ -15,6 +15,7 @@ let registrationGate = null;
 let registrationFailures = 0;
 let historyStateListener = null;
 const badgeTitles = [];
+const badgeAlarms = [];
 const sentTabMessages = [];
 
 function nextTurn() {
@@ -106,7 +107,7 @@ globalThis.chrome = {
     },
   },
   alarms: {
-    create() {},
+    create(name, info) { badgeAlarms.push({ name, ...info }); },
     clear(_name, callback) {
       callback?.(true);
     },
@@ -848,6 +849,23 @@ function setSettings(settings) {
       `expected an elapsed timer to persist as disabled with no activeUntil, got ${JSON.stringify(expiredStoredSettings)}`,
     );
   }
+
+  badgeTitles.length = 0;
+  const scheduledSettings = {
+    ...config.DEFAULT_SETTINGS,
+    activeUntil: Date.now() - 10,
+    schedules: [
+      { days: [0, 1, 2, 3, 4, 5, 6], start: "00:00", end: "12:00" },
+      { days: [0, 1, 2, 3, 4, 5, 6], start: "12:00", end: "00:00" },
+    ],
+  };
+  setSettings(scheduledSettings);
+  await waitFor(() => badgeTitles.at(-1) === "Anti Scroll: focus window active", "the schedule badge");
+  await waitFor(() => badgeAlarms.at(-1)?.when === config.getScheduleState(scheduledSettings).nextChange, "the next schedule boundary alarm");
+  if (storage.sync[config.SETTINGS_KEY].mode !== config.MODES.SELECTED) throw new Error("timer expiry must preserve scheduled activation");
+  badgeTitles.length = 0;
+  setSettings({ ...scheduledSettings, mode: config.MODES.DISABLED });
+  await waitFor(() => badgeTitles.at(-1) === "Anti Scroll: off", "manual off overriding the schedule");
 
   sentTabMessages.length = 0;
   historyStateListener({ frameId: 0, tabId: 7, url: "https://x.com/explore" });

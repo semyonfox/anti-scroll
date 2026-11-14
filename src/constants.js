@@ -97,6 +97,7 @@
     allowMessagingPages: true,
     presets: DEFAULT_PRESET_STATE,
     siteModes: {},
+    schedules: [],
     customDomains: [],
     pausedUntilByHost: {},
   };
@@ -333,6 +334,43 @@
     ];
   }
 
+  function sanitizeSchedules(value) {
+    if (!Array.isArray(value)) return [];
+    return value.slice(0, 20).flatMap((window) => {
+      if (!window || typeof window !== "object") return [];
+      const validTime = (time) => typeof time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+      const days = Array.isArray(window.days)
+        ? [...new Set(window.days.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))]
+        : [];
+      if (!days.length || !validTime(window.start) || !validTime(window.end) || window.start === window.end) return [];
+      return [{ days, start: window.start, end: window.end }];
+    });
+  }
+
+  function getScheduleState(settings, now = Date.now()) {
+    let active = false;
+    let nextChange = null;
+    const date = new Date(now);
+    for (const window of sanitizeSchedules(settings.schedules)) {
+      for (let offset = -1; offset <= 7; offset += 1) {
+        const start = new Date(date);
+        start.setDate(date.getDate() + offset);
+        if (!window.days.includes(start.getDay())) continue;
+        const [startHour, startMinute] = window.start.split(":").map(Number);
+        const [endHour, endMinute] = window.end.split(":").map(Number);
+        start.setHours(startHour, startMinute, 0, 0);
+        const end = new Date(start);
+        if (window.end < window.start) end.setDate(end.getDate() + 1);
+        end.setHours(endHour, endMinute, 0, 0);
+        if (now >= start.getTime() && now < end.getTime()) active = true;
+        for (const boundary of [start.getTime(), end.getTime()]) {
+          if (boundary > now && (nextChange === null || boundary < nextChange)) nextChange = boundary;
+        }
+      }
+    }
+    return { active, nextChange };
+  }
+
   function sanitizeSettings(value) {
     const incoming = value && typeof value === "object" ? value : {};
     const presetState = { ...DEFAULT_PRESET_STATE };
@@ -398,6 +436,7 @@
           : DEFAULT_SETTINGS.allowMessagingPages,
       presets: presetState,
       siteModes,
+      schedules: sanitizeSchedules(incoming.schedules),
       customDomains: uniqueDomains(
         Array.isArray(incoming.customDomains) ? incoming.customDomains : [],
       ),
@@ -702,18 +741,18 @@
       return { active: false, reason: "disabled", host };
     }
 
-    if (settings.activeUntil && settings.activeUntil <= Date.now()) {
+    const pausedUntil = settings.pausedUntilByHost[host];
+    if (pausedUntil && pausedUntil > Date.now()) {
+      return { active: false, reason: "paused", host, pausedUntil };
+    }
+
+    if (settings.activeUntil && settings.activeUntil <= Date.now() && !getScheduleState(settings).active) {
       return {
         active: false,
         reason: "timer-ended",
         host,
         activeUntil: settings.activeUntil,
       };
-    }
-
-    const pausedUntil = settings.pausedUntilByHost[host];
-    if (pausedUntil && pausedUntil > Date.now()) {
-      return { active: false, reason: "paused", host, pausedUntil };
     }
 
     if (settings.mode === MODES.ALL) {
@@ -853,6 +892,8 @@
     domainMatches,
     getDomainMatchPatterns,
     sanitizeSettings,
+    sanitizeSchedules,
+    getScheduleState,
     sanitizeAnalytics,
     getPresetById,
     isFeedLikePage,
