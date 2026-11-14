@@ -33,6 +33,7 @@ run the local JavaScript checks from the repository root:
 
 ```sh
 for file in src/*.js popup/popup.js scripts/*.js; do node --check "$file" || exit 1; done
+node scripts/generate-manifests.js --check
 node scripts/smoke-test.js
 node scripts/background-message-test.js
 node scripts/storage-behavior-test.js
@@ -67,3 +68,10 @@ Branch policy is in `BRANCHES.md`: `main` is the source of truth, while `chromiu
 ## Notes
 
 This is intentionally plain JavaScript with no build step. That keeps early extension iteration fast and makes the shipped code easy to inspect.
+
+## Preset metadata
+
+Edit presets in `src/constants.js`, then run `node scripts/generate-manifests.js`.
+The runtime and popup share `getDomainMatchPatterns()`. Manifest structure lives
+in `scripts/manifest-template.json`, with Firefox overrides in
+`scripts/manifest-firefox.json`. Verification rejects stale generated files.
