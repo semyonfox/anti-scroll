@@ -5,7 +5,11 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "../src/content.js"), "utf8");
 
-async function runCase(changeBeforeRead) {
+async function runCase(changeBeforeRead, hasNavigation) {
+  const intervals = [];
+  const events = new Map();
+  const navigationEvents = new Map();
+  const matchedUrls = [];
   let resolveRead;
   let onChanged;
   let onMessage;
@@ -28,7 +32,8 @@ async function runCase(changeBeforeRead) {
     FEED_SELECTORS: {},
     getApi() { return api; },
     sanitizeSettings(value) { return value; },
-    matchShield(_url, settings) {
+    matchShield(url, settings) {
+      matchedUrls.push(url);
       return { active: false, reason: settings.mode, host: "example.test" };
     },
     storageGet() {
@@ -40,10 +45,13 @@ async function runCase(changeBeforeRead) {
     document,
     location: { href: "https://example.test/" },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
-    setInterval() {},
+    navigation: hasNavigation ? {
+      addEventListener(name, listener) { navigationEvents.set(name, listener); },
+    } : undefined,
+    setInterval(callback, delay) { intervals.push({ callback, delay }); },
     setTimeout() {},
     clearTimeout() {},
-    addEventListener() {},
+    addEventListener(name, listener) { events.set(name, listener); },
   };
   context.top = context;
   vm.runInNewContext(source, context, { filename: "content.js" });
@@ -65,11 +73,40 @@ async function runCase(changeBeforeRead) {
   let response;
   onMessage({ type: "anti-scroll-current-state" }, {}, (value) => { response = value; });
   assert.equal(response.match.reason, "disabled");
+
+  if (hasNavigation) {
+    assert.equal(intervals.length, 0, "Navigation API support should avoid URL polling");
+    assert.equal(typeof navigationEvents.get("currententrychange"), "function");
+  } else {
+    assert.equal(intervals.length, 1);
+    assert.equal(intervals[0].delay, 2000, "legacy URL fallback should use a slower interval");
+  }
+
+  const signals = [
+    () => events.get("popstate")(),
+    () => events.get("hashchange")(),
+    () => onMessage({ type: "anti-scroll-location-change" }, {}, () => {}),
+    hasNavigation
+      ? () => navigationEvents.get("currententrychange")()
+      : () => intervals[0].callback(),
+  ];
+  for (let index = 0; index < signals.length; index += 1) {
+    context.location.href = `https://example.test/route-${index}`;
+    const count = matchedUrls.length;
+    signals[index]();
+    assert.ok(matchedUrls.length > count, "route changes should refresh shield state");
+    assert.equal(matchedUrls.at(-1), context.location.href);
+    const updatedCount = matchedUrls.length;
+    signals[index]();
+    assert.equal(matchedUrls.length, updatedCount, "duplicate signals should not refresh state");
+  }
 }
 
 (async () => {
-  await runCase(true);
-  await runCase(false);
+  await runCase(true, true);
+  await runCase(false, true);
+  await runCase(true, false);
+  await runCase(false, false);
   console.log("content initialization ordering ok");
 })().catch((error) => {
   console.error(error);
