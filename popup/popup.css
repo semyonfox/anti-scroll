@@ -713,3 +713,47 @@ button[hidden] {
   font: inherit;
   font-size: 12px;
 }
+
+.schedules {
+  padding: 12px;
+}
+.schedules h2 {
+  margin: 0 0 8px;
+}
+.schedules fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin: 12px 0;
+}
+.schedules fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.schedule-times, .schedule-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.schedule-times input {
+  min-height: 36px;
+  max-width: 8rem;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+}
+.schedule-item {
+  justify-content: space-between;
+  margin-top: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.schedule-item span {
+  flex: 1 1 10rem;
+  overflow-wrap: anywhere;
+}

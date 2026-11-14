@@ -201,7 +201,7 @@ const cases = [
     }),
     "https://www.reddit.com/",
     false,
-    "timer-ended",
+    "paused",
   ],
   [
     config.sanitizeSettings({ ...baseSettings, allowMessagingPages: false }),
@@ -630,3 +630,35 @@ for (const [mode, url, active, type] of [
 assert.deepEqual(Object.keys(config.sanitizeSettings({}).siteModes), []);
 assert.equal(config.sanitizeSettings({ siteModes: { youtube: "invalid" } }).siteModes.youtube, undefined);
 assert.equal(config.matchShield("https://instagram.com/direct/", { siteModes: { instagram: "full-page" } }).active, false);
+
+const weekly = { schedules: [{ days: [1], start: "09:00", end: "17:00" }] };
+const localTime = (day, time) => new Date(`2026-11-${day}T${time}:00`).getTime();
+assert.equal(config.getScheduleState(weekly, localTime("16", "08:59")).active, false);
+assert.equal(config.getScheduleState(weekly, localTime("16", "09:00")).active, true);
+assert.equal(config.getScheduleState(weekly, localTime("16", "17:00")).active, false);
+assert.equal(config.getScheduleState(weekly, localTime("17", "10:00")).active, false);
+assert.equal(config.getScheduleState(weekly, localTime("16", "17:00")).nextChange, localTime("23", "09:00"));
+const overnight = { schedules: [{ days: [0], start: "22:00", end: "02:00" }] };
+assert.equal(config.getScheduleState(overnight, localTime("15", "23:00")).active, true);
+assert.equal(config.getScheduleState(overnight, localTime("16", "01:59")).active, true);
+assert.equal(config.getScheduleState(overnight, localTime("16", "02:00")).active, false);
+assert.equal(config.getScheduleState(overnight, localTime("17", "01:00")).active, false);
+const overlap = { schedules: [...weekly.schedules, { days: [1], start: "16:00", end: "18:00" }] };
+assert.equal(config.getScheduleState(overlap, localTime("16", "17:00")).active, true);
+assert.deepEqual(config.sanitizeSchedules([{ days: [1], start: "24:00", end: "25:00" }, { days: [], start: "09:00", end: "17:00" }, { days: [1], start: "09:00", end: "09:00" }]), []);
+assert.equal(config.sanitizeSchedules([{ days: [1, 1, 9], start: "09:00", end: "17:00" }])[0].days.length, 1);
+
+const realNow = Date.now;
+try {
+  Date.now = () => localTime("16", "10:00");
+  const timed = { ...weekly, activeUntil: localTime("16", "08:00") };
+  assert.equal(config.matchShield("https://youtube.com/", timed).active, true);
+  assert.equal(config.matchShield("https://youtube.com/", { ...timed, mode: "disabled" }).reason, "disabled");
+  assert.equal(config.matchShield("https://youtube.com/", { ...timed, pausedUntilByHost: { "youtube.com": localTime("16", "11:00") } }).reason, "paused");
+  Date.now = () => localTime("16", "18:00");
+  assert.equal(config.matchShield("https://youtube.com/", timed).reason, "timer-ended");
+  assert.equal(config.matchShield("https://youtube.com/", weekly).active, true);
+} finally {
+  Date.now = realNow;
+}
+console.log("schedule boundaries and precedence ok");

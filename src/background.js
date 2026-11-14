@@ -291,19 +291,25 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     await seedDefaultSettings();
     const settings = await expireElapsedTimer();
     await reconcileDynamicContentScripts(null, settings);
-    await updateBadge();
+    await updateBadge(settings);
+    await scheduleBadgeAlarm(settings);
   }
 
   function badgeState(settings) {
+    const scheduled = config.getScheduleState(settings).active;
     if (
       settings.mode === config.MODES.DISABLED ||
-      (settings.activeUntil && settings.activeUntil <= Date.now())
+      (settings.activeUntil && settings.activeUntil <= Date.now() && !scheduled)
     ) {
       return {
         text: "OFF",
         color: "#6b7280",
         title: "Anti Scroll: off",
       };
+    }
+
+    if (scheduled) {
+      return { text: "SCH", color: "#116c5f", title: "Anti Scroll: focus window active" };
     }
 
     if (settings.activeUntil) {
@@ -357,22 +363,18 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     const nextSettings = settings || (await getSettings());
     await alarmClear(BADGE_ALARM);
 
-    if (
-      !nextSettings.activeUntil ||
-      nextSettings.mode === config.MODES.DISABLED
-    ) {
-      return;
-    }
-
+    if (nextSettings.mode === config.MODES.DISABLED) return;
     const now = Date.now();
-    if (nextSettings.activeUntil <= now) {
+    const times = [];
+    const schedule = config.getScheduleState(nextSettings, now);
+    if (schedule.nextChange) times.push(schedule.nextChange);
+    if (nextSettings.activeUntil > now) {
+      times.push(Math.min(nextSettings.activeUntil, now + 60 * 1000));
+    } else if (nextSettings.activeUntil && !nextSettings.schedules.length) {
       await expireElapsedTimer();
       return;
     }
-
-    await alarmCreate(BADGE_ALARM, {
-      when: Math.min(nextSettings.activeUntil, now + 60 * 1000),
-    });
+    if (times.length) await alarmCreate(BADGE_ALARM, { when: Math.min(...times) });
   }
 
   // Expiry is a read-modify-write, so it re-reads inside the settings queue
@@ -383,6 +385,8 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       if (!current.activeUntil || current.activeUntil > Date.now()) {
         return current;
       }
+
+      if (current.schedules.length) return current;
 
       const expiredSettings = {
         ...current,

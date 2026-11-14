@@ -48,6 +48,28 @@
         <p id="timerStatus" class="timer-status" role="status">No timer set</p>
       </section>
 
+      <section class="card schedules" aria-labelledby="schedulesLabel">
+        <h2 id="schedulesLabel">Focus windows</h2>
+        <p id="scheduleStatus" role="status"></p>
+        <p class="hint">Local time. Outside windows your normal settings apply. Off and site pauses always win.</p>
+        <fieldset id="scheduleDays">
+          <legend>Repeat on</legend>
+          <label><input type="checkbox" value="1" checked>Mon</label>
+          <label><input type="checkbox" value="2" checked>Tue</label>
+          <label><input type="checkbox" value="3" checked>Wed</label>
+          <label><input type="checkbox" value="4" checked>Thu</label>
+          <label><input type="checkbox" value="5" checked>Fri</label>
+          <label><input type="checkbox" value="6">Sat</label>
+          <label><input type="checkbox" value="0">Sun</label>
+        </fieldset>
+        <div class="schedule-times">
+          <label>From <input id="scheduleStart" type="time" value="09:00" required></label>
+          <label>Until <input id="scheduleEnd" type="time" value="17:00" required></label>
+          <button id="addSchedule" type="button">Add window</button>
+        </div>
+        <div id="scheduleList"></div>
+      </section>
+
       <section class="card current-row" aria-label="Current site">
         <span id="currentStatus" role="status">This page is allowed</span>
         <div class="current-actions">

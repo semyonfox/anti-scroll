@@ -358,7 +358,52 @@
     }
   }
 
+  function renderSchedules() {
+    const schedule = config.getScheduleState(state.settings);
+    elements.scheduleStatus.textContent = state.settings.mode === config.MODES.DISABLED
+      ? "Off overrides focus windows"
+      : schedule.active ? "Focus window active"
+        : schedule.nextChange ? `Outside focus window. Next change ${new Date(schedule.nextChange).toLocaleString()}`
+          : "No focus windows";
+    const fragment = document.createDocumentFragment();
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    state.settings.schedules.forEach((window, index) => {
+      const row = document.createElement("div");
+      row.className = "schedule-item";
+      const text = document.createElement("span");
+      text.textContent = `${window.days.map((day) => dayNames[day]).join(", ")} ${window.start} to ${window.end}${window.end < window.start ? " next day" : ""}`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "Remove";
+      remove.dataset.removeSchedule = String(index);
+      remove.setAttribute("aria-label", `Remove ${text.textContent}`);
+      row.append(text, remove);
+      fragment.append(row);
+    });
+    elements.scheduleList.replaceChildren(fragment);
+  }
+
+  async function addSchedule() {
+    if (state.settings.schedules.length >= 20) {
+      state.actionError = "You can add up to 20 focus windows.";
+      render();
+      return;
+    }
+    const window = {
+      days: Array.from(elements.scheduleDays.querySelectorAll("input:checked")).map((input) => Number(input.value)),
+      start: elements.scheduleStart.value,
+      end: elements.scheduleEnd.value,
+    };
+    if (!config.sanitizeSchedules([window]).length) {
+      state.actionError = "Choose at least one day and different start and end times.";
+      render();
+      return;
+    }
+    await saveSettings({ ...state.settings, schedules: [...state.settings.schedules, window] });
+  }
+
   function renderTimer() {
+    renderSchedules();
     const activeUntil = state.settings.activeUntil;
     if (activeUntil && activeUntil > Date.now()) {
       elements.timerStatus.textContent = `Running until ${formatTime(activeUntil)}`;
@@ -367,7 +412,8 @@
     }
 
     elements.timerStatus.textContent = activeUntil
-      ? "Timer ended"
+      ? config.getScheduleState(state.settings).active && state.settings.mode !== config.MODES.DISABLED
+        ? "Timer ended. Focus window keeps blocking." : "Timer ended"
       : state.settings.mode === config.MODES.DISABLED ? "Start also turns on Selected sites mode" : "No time limit. Blocking stays on until you turn it off.";
     elements.clearTimer.disabled = !activeUntil;
   }
@@ -526,6 +572,10 @@
     }
     for (const control of elements.siteList.querySelectorAll?.("input, button, select") || []) control.disabled = unavailable;
     if (unavailable) for (const id of ["clearTimer", "pauseCurrent", "toggleCurrent", "grantMissingPermission"]) elements[id].disabled = true;
+    for (const container of [elements.scheduleDays, elements.scheduleList]) {
+      for (const control of container.querySelectorAll?.("input, button") || []) control.disabled = unavailable;
+    }
+    for (const control of [elements.addSchedule, elements.scheduleStart, elements.scheduleEnd]) control.disabled = unavailable;
     elements.anonymousTelemetryEnabled.disabled = unavailable || !root.AntiScrollTelemetry?.configured;
   }
 
@@ -941,6 +991,12 @@
       "selectAll",
       "clearSelected",
       "siteList",
+      "scheduleStatus",
+      "scheduleDays",
+      "scheduleStart",
+      "scheduleEnd",
+      "addSchedule",
+      "scheduleList",
       "strictFeeds",
       "allowEditableFields",
       "allowMessagingPages",
@@ -1031,6 +1087,12 @@
 
       event.preventDefault();
       await addCustomDomain(domain);
+    });
+    elements.addSchedule.addEventListener("click", addSchedule);
+    elements.scheduleList.addEventListener("click", async (event) => {
+      const index = event.target.dataset.removeSchedule;
+      if (index === undefined) return;
+      await saveSettings({ ...state.settings, schedules: state.settings.schedules.filter((_, i) => i !== Number(index)) });
     });
     elements.siteList.addEventListener("change", toggleSite);
     elements.siteList.addEventListener("click", clickSiteList);
