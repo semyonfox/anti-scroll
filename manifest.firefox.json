@@ -103,6 +103,28 @@
       "match_origin_as_fallback": true
     }
   ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "scripting",
+    "storage",
+    "webNavigation"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "anti-scroll@example.invalid",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    },
+    "gecko_android": {}
+  },
   "host_permissions": [
     "https://reddit.com/*",
     "https://*.reddit.com/*",
@@ -136,27 +158,5 @@
     "https://*.github.com/*",
     "https://news.ycombinator.com/*",
     "https://*.news.ycombinator.com/*"
-  ],
-  "permissions": [
-    "activeTab",
-    "alarms",
-    "scripting",
-    "storage",
-    "webNavigation"
-  ],
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "anti-scroll@example.invalid",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ]
-      }
-    },
-    "gecko_android": {}
-  },
-  "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
   ]
 }

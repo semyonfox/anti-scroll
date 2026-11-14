@@ -46,7 +46,9 @@
         "https://news.ycombinator.com/*",
         "https://*.news.ycombinator.com/*"
       ],
-      "js": ["src/page-lock.js"],
+      "js": [
+        "src/page-lock.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true,
@@ -88,12 +90,26 @@
         "https://news.ycombinator.com/*",
         "https://*.news.ycombinator.com/*"
       ],
-      "js": ["src/constants.js", "src/content.js"],
+      "js": [
+        "src/constants.js",
+        "src/content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true,
       "match_origin_as_fallback": true
     }
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "scripting",
+    "storage",
+    "webNavigation"
   ],
   "host_permissions": [
     "https://reddit.com/*",
@@ -128,7 +144,5 @@
     "https://*.github.com/*",
     "https://news.ycombinator.com/*",
     "https://*.news.ycombinator.com/*"
-  ],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
-  "permissions": ["activeTab", "alarms", "scripting", "storage", "webNavigation"]
+  ]
 }

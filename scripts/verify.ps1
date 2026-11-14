@@ -3,6 +3,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 try {
+  node scripts/generate-manifests.js --check
+  if ($LASTEXITCODE -ne 0) { throw "Generated manifests are stale" }
   foreach ($manifest in @("manifest.json", "manifest.chromium.json", "manifest.firefox.json")) {
     Get-Content -Raw -LiteralPath $manifest | ConvertFrom-Json | Out-Null
   }
