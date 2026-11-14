@@ -15,22 +15,8 @@ try {
     throw "manifest.json and manifest.chromium.json must stay semantically identical"
   }
 
-  node --check src/constants.js
-  node --check src/page-lock.js
-  node --check src/background.js
-  node --check src/content.js
-  node --check popup/popup.js
-  node --check scripts/background-message-test.js
-  node --check scripts/storage-behavior-test.js
-  node --check scripts/content-initialization-test.js
-  node --check scripts/content-dom-behavior-test.js
-  node --check scripts/popup-save-test.js
-  node scripts/smoke-test.js
-  node scripts/background-message-test.js
-  node scripts/storage-behavior-test.js
-  node scripts/content-initialization-test.js
-  node scripts/content-dom-behavior-test.js
-  node scripts/popup-save-test.js
+  node scripts/verify.js
+  if ($LASTEXITCODE -ne 0) { throw "Local verification failed" }
 
   & $PSScriptRoot/build-extension.ps1 -Target chromium | Out-Host
   & $PSScriptRoot/build-extension.ps1 -Target firefox | Out-Host

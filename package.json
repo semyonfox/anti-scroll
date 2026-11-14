@@ -1,0 +1,11 @@
+{
+  "name": "anti-scroll",
+  "private": true,
+  "scripts": {
+    "verify": "node scripts/verify.js",
+    "test:browser": "node scripts/browser-test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}
