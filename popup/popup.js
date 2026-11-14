@@ -312,16 +312,16 @@
       elements.statusPill.textContent =
         match.type === "all"
           ? "All sites"
-          : match.type === "custom"
+          : ["custom", "full-page"].includes(match.type)
             ? "Blocked"
-            : "Feed";
+            : match.type === "entry-points" ? "Entry points" : "Feed";
       elements.statusPill.classList.add("blocked");
       elements.currentStatus.textContent =
         match.type === "all"
           ? "All sites are blocked"
-          : match.type === "custom"
+          : ["custom", "full-page"].includes(match.type)
             ? "This site is blocked"
-            : "Feed area is hidden";
+            : match.type === "entry-points" ? "Feed entry points are hidden" : "Feed area is hidden";
       return;
     }
 
@@ -437,7 +437,18 @@
       remove.dataset.removeDomain = item.id;
       row.append(remove);
     } else {
-      row.append(document.createElement("span"));
+      const select = document.createElement("select");
+      select.id = `mode-${item.id}`;
+      select.dataset.siteMode = item.id;
+      select.setAttribute("aria-label", `${item.label} blocking mode`);
+      for (const [value, label] of [["", "Default"], ["feed", "Feed"], ["full-page", "Full page"], ["entry-points", "Entry points"], ["off", "Off"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        select.append(option);
+      }
+      select.value = state.settings.siteModes[item.id] || "";
+      row.append(select);
     }
 
     return row;
@@ -513,7 +524,7 @@
     for (const id of ["modeDisabled", "modeSelected", "modeAll", "siteSearch", "durationMinutes", "startTimer", "selectAll", "clearSelected", "strictFeeds", "allowEditableFields", "allowMessagingPages", "resetStats"]) {
       elements[id].disabled = unavailable;
     }
-    for (const control of elements.siteList.querySelectorAll?.("input, button") || []) control.disabled = unavailable;
+    for (const control of elements.siteList.querySelectorAll?.("input, button, select") || []) control.disabled = unavailable;
     if (unavailable) for (const id of ["clearTimer", "pauseCurrent", "toggleCurrent", "grantMissingPermission"]) elements[id].disabled = true;
     elements.anonymousTelemetryEnabled.disabled = unavailable || !root.AntiScrollTelemetry?.configured;
   }
@@ -740,6 +751,14 @@
   }
 
   async function toggleSite(event) {
+    const presetId = event.target.dataset.siteMode;
+    if (presetId) {
+      await saveSettings({
+        ...state.settings,
+        siteModes: { ...state.settings.siteModes, [presetId]: event.target.value },
+      });
+      return;
+    }
     const checkbox = event.target.closest("input[type='checkbox']");
     if (!checkbox?.dataset.itemId) {
       return;

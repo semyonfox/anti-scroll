@@ -442,7 +442,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
   function validatedAttempt(message, sender) {
     const matchType =
       typeof message.matchType === "string" ? message.matchType : "";
-    if (!["all", "preset", "custom", "feed"].includes(matchType)) {
+    if (!["all", "preset", "custom", "feed", "full-page", "entry-points"].includes(matchType)) {
       return null;
     }
 
@@ -459,7 +459,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       config.getPresetById(message.presetId)
         ? message.presetId
         : null;
-    if (matchType === "preset" || matchType === "feed") {
+    if (["preset", "feed", "full-page", "entry-points"].includes(matchType)) {
       const preset = presetId ? config.getPresetById(presetId) : null;
       if (
         !preset ||
@@ -494,7 +494,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
       return null;
     }
 
-    if (payload.matchType === "preset" || payload.matchType === "feed") {
+    if (["preset", "feed", "full-page", "entry-points"].includes(payload.matchType)) {
       if (!payload.presetId || match.presetId !== payload.presetId) {
         return null;
       }

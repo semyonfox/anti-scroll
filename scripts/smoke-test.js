@@ -517,7 +517,7 @@ if (
   );
 }
 if (
-  !contentSource.includes('shieldMatch.type === "feed"') ||
+  !contentSource.includes("isSurfaceShield(shieldMatch)") ||
   !contentSource.includes("Array.from(surfaceTargets)")
 ) {
   throw new Error(
@@ -612,3 +612,21 @@ for (const requiredBehavior of [
 }
 
 console.log("matching smoke ok");
+
+
+const assert = require("node:assert/strict");
+for (const [mode, url, active, type] of [
+  ["feed", "https://youtube.com/", true, "feed"],
+  ["feed", "https://youtube.com/watch?v=test", false, "preset"],
+  ["full-page", "https://youtube.com/watch?v=test", true, "full-page"],
+  ["entry-points", "https://youtube.com/watch?v=test", true, "entry-points"],
+  ["off", "https://youtube.com/", false, "preset"],
+]) {
+  const settings = { siteModes: { youtube: mode } };
+  const match = config.matchShield(url, settings);
+  assert.equal(match.active, active, mode);
+  assert.equal(match.type, type, mode);
+}
+assert.deepEqual(Object.keys(config.sanitizeSettings({}).siteModes), []);
+assert.equal(config.sanitizeSettings({ siteModes: { youtube: "invalid" } }).siteModes.youtube, undefined);
+assert.equal(config.matchShield("https://instagram.com/direct/", { siteModes: { instagram: "full-page" } }).active, false);

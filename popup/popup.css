@@ -702,3 +702,14 @@ button[hidden] {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+.site-row select {
+  max-width: 7rem;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
