@@ -32,14 +32,9 @@ PowerShell is required for that command. On Linux or macOS without PowerShell,
 run the local JavaScript checks from the repository root:
 
 ```sh
-for file in src/*.js popup/popup.js scripts/*.js; do node --check "$file" || exit 1; done
-node scripts/generate-manifests.js --check
-node scripts/smoke-test.js
-node scripts/background-message-test.js
-node scripts/storage-behavior-test.js
-node scripts/content-initialization-test.js
-node scripts/content-dom-behavior-test.js
-node scripts/popup-save-test.js
+pnpm install --frozen-lockfile
+pnpm exec playwright install chromium
+pnpm verify
 ```
 
 The JavaScript checks do not package the browser builds. `verify.ps1` also
@@ -75,3 +70,15 @@ Edit presets in `src/constants.js`, then run `node scripts/generate-manifests.js
 The runtime and popup share `getDomainMatchPatterns()`. Manifest structure lives
 in `scripts/manifest-template.json`, with Firefox overrides in
 `scripts/manifest-firefox.json`. Verification rejects stale generated files.
+
+## Browser checks
+
+`pnpm verify` includes a real Chromium extension test with intercepted fixture pages.
+It checks popup storage changes, timer controls, activity reset, feed hiding,
+SPA navigation and full-page scroll locking. No social site requests are made.
+Run it alone with `pnpm test:browser`.
+
+For Firefox, load the temporary add-on and check YouTube feed hiding, a watch
+page staying usable, Off/Selected/All mode changes, a five-minute timer,
+custom-domain permission grant and removal, typing, and activity reset.
+Firefox extension loading is checked manually for now.
