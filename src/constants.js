@@ -96,6 +96,7 @@
     allowEditableFields: true,
     allowMessagingPages: true,
     presets: DEFAULT_PRESET_STATE,
+    siteModes: {},
     customDomains: [],
     pausedUntilByHost: {},
   };
@@ -248,6 +249,18 @@
     hackernews: ["tr#bigbox td table"],
   };
 
+  const SITE_MODES = ["feed", "full-page", "entry-points", "off"];
+  const ENTRY_POINT_SELECTORS = {
+    youtube: ["ytd-guide-entry-renderer:has(a[title='Shorts'])", "ytd-mini-guide-entry-renderer:has(a[title='Shorts'])", "#related", ".ytp-ce-element", ".html5-endscreen", "ytd-reel-shelf-renderer", "ytd-rich-shelf-renderer[is-shorts]"],
+    instagram: ["nav a[href='/reels/']", "nav a[href='/explore/']"],
+    x: ["div[data-testid='news_sidebar']", "a[href='/explore/tabs/for-you']"],
+    facebook: ["a[href*='/reel/']", "a[href*='/reels/']", "[data-pagelet='Stories']"],
+    linkedin: [".feed-right-rail", ".feed-shared-news-module", ".feed-follows-module"],
+    reddit: ["recent-posts", "reddit-recent-pages", "#right-sidebar-container"],
+    twitch: ["div.side-nav-section:has([data-test-selector='recommended-channel'])"],
+    github: ["aside.feed-right-column", ".feed-right-sidebar"],
+  };
+
   function normalizeHost(host) {
     return String(host || "")
       .trim()
@@ -343,6 +356,12 @@
       }
     }
 
+    const siteModes = createRecord();
+    for (const preset of PRESETS) {
+      const mode = incoming.siteModes?.[preset.id];
+      if (SITE_MODES.includes(mode)) siteModes[preset.id] = mode;
+    }
+
     const pausedUntilByHost = createRecord();
     if (
       incoming.pausedUntilByHost &&
@@ -378,6 +397,7 @@
           ? incoming.allowMessagingPages
           : DEFAULT_SETTINGS.allowMessagingPages,
       presets: presetState,
+      siteModes,
       customDomains: uniqueDomains(
         Array.isArray(incoming.customDomains) ? incoming.customDomains : [],
       ),
@@ -639,7 +659,13 @@
       };
     }
 
-    const feedShield = matchFeedShieldWithSettings(url, urlMatch, settings);
+    const siteMode = settings.siteModes[urlMatch.presetId];
+    if (siteMode === "off") return { ...urlMatch, active: false, reason: "site-off" };
+    if (siteMode === "full-page") return { ...urlMatch, type: "full-page", reason: "full-page" };
+    if (siteMode === "entry-points") return { ...urlMatch, type: "entry-points", reason: "entry-points" };
+
+    const feedSettings = siteMode === "feed" ? { ...settings, strictFeeds: true } : settings;
+    const feedShield = matchFeedShieldWithSettings(url, urlMatch, feedSettings);
     if (feedShield.active) {
       return {
         ...urlMatch,
@@ -813,6 +839,8 @@
     MODES,
     PRESETS,
     FEED_SELECTORS,
+    ENTRY_POINT_SELECTORS,
+    SITE_MODES,
     DEFAULT_SETTINGS,
     EMPTY_ANALYTICS,
     MAX_ANALYTICS_DOMAINS,

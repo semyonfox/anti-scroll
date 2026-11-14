@@ -20,7 +20,7 @@ async function main() {
       body: `<!doctype html><style>body {min-height:4000px} #nested {height:100px;overflow:auto}</style>
         <input aria-label="Message"><div id="nested"><div style="height:2000px">Nested content</div></div>
         <ytd-browse page-subtype="home"><ytd-rich-grid-renderer><div id="contents">Feed</div></ytd-rich-grid-renderer></ytd-browse>
-        <a id="watch" href="/watch?v=fixture">Watch</a>`,
+        <div id="related">Recommendations</div><a id="watch" href="/watch?v=fixture">Watch</a>`,
     }));
     const page = await context.newPage();
     await page.goto("https://www.youtube.com/");
@@ -38,6 +38,23 @@ async function main() {
     await popup.locator("#modeSelected").click();
     await page.goto("https://www.youtube.com/");
     await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface === "true");
+    await page.evaluate(() => history.pushState({}, "", "/watch?v=fixture"));
+    await popup.locator("#mode-youtube").selectOption("full-page");
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollShield === "true");
+    await popup.locator("#mode-youtube").selectOption("entry-points");
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollEntryPoints === "true");
+    assert.equal(await page.locator("#related").isVisible(), false);
+    assert.equal(await page.locator("ytd-rich-grid-renderer").isVisible(), true);
+    assert.equal(await page.locator("#anti-scroll-feed-placeholder").count(), 0);
+    await popup.locator("#mode-youtube").selectOption("off");
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
+    assert.equal(await page.locator("#related").isVisible(), true);
+    await popup.locator("#mode-youtube").selectOption("");
+    for (const colourScheme of ["light", "dark"]) {
+      await popup.emulateMedia({ colorScheme: colourScheme });
+      await popup.setViewportSize({ width: 380, height: 850 });
+      await popup.screenshot({ path: `/tmp/anti-scroll-modes-${colourScheme}.png`, fullPage: true });
+    }
     await popup.locator("#durationMinutes").fill("5");
     await popup.locator("#startTimer").click();
     await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.activeUntil > Date.now());

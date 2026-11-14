@@ -82,3 +82,15 @@ For Firefox, load the temporary add-on and check YouTube feed hiding, a watch
 page staying usable, Off/Selected/All mode changes, a five-minute timer,
 custom-domain permission grant and removal, typing, and activity reset.
 Firefox extension loading is checked manually for now.
+
+## Per-site modes
+
+Each preset row has a mode selector. Default keeps the existing feed behaviour
+and respects Hide feeds. Feed explicitly hides known feed routes. Full page
+blocks every route except allowed messaging pages. Entry points hides only
+known navigation links and recommendation surfaces on any route, without a
+page lock or placeholder. Off allows that preset. Presets still need to be
+selected, and All sites mode still blocks every site.
+
+Custom domains keep full-page blocking. Sites without known entry-point
+selectors fail open in Entry points mode.

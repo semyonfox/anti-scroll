@@ -56,13 +56,22 @@
   const scrollCheckCache = new WeakMap();
   const FEED_SELECTORS = config.FEED_SELECTORS;
 
+  function isSurfaceShield(match) {
+    return match?.type === "feed" || match?.type === "entry-points";
+  }
+
+  function currentSurfaceSelectors() {
+    return (shieldMatch?.type === "entry-points"
+      ? config.ENTRY_POINT_SELECTORS : FEED_SELECTORS)[shieldMatch?.presetId] || [];
+  }
+
   function buildFeedSelectorCss() {
     const rules = [];
 
     for (const [presetId, selectors] of Object.entries(FEED_SELECTORS)) {
       for (const selector of selectors) {
         rules.push(`
-          :root[data-anti-scroll-feed-surface="true"][data-anti-scroll-feed-preset="${presetId}"] ${selector} {
+          :root[data-anti-scroll-feed-surface="true"][data-anti-scroll-feed-preset="${presetId}"]:not([data-anti-scroll-entry-points="true"]) ${selector} {
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
@@ -524,7 +533,7 @@
   }
 
   function scheduleSurfaceRefresh(records) {
-    if (!shieldMatch?.active || shieldMatch.type !== "feed") {
+    if (!shieldMatch?.active || !isSurfaceShield(shieldMatch)) {
       return;
     }
 
@@ -579,7 +588,7 @@
   }
 
   function getFeedTargets() {
-    const selectors = FEED_SELECTORS[shieldMatch?.presetId] || [];
+    const selectors = currentSurfaceSelectors();
     const targets = [];
 
     for (const selector of selectors) {
@@ -614,7 +623,7 @@
   }
 
   function getFeedTargetsWithin(root) {
-    const selectors = FEED_SELECTORS[shieldMatch?.presetId] || [];
+    const selectors = currentSurfaceSelectors();
     const targets = [];
 
     for (const selector of selectors) {
@@ -636,7 +645,7 @@
   }
 
   function stillMatchesFeedSelectors(element) {
-    const selectors = FEED_SELECTORS[shieldMatch?.presetId] || [];
+    const selectors = currentSurfaceSelectors();
 
     for (const selector of selectors) {
       try {
@@ -667,7 +676,7 @@
   }
 
   function refreshFeedTargets(addedRoots) {
-    if (!shieldMatch?.active || shieldMatch.type !== "feed") {
+    if (!shieldMatch?.active || !isSurfaceShield(shieldMatch)) {
       return;
     }
 
@@ -708,7 +717,7 @@
   }
 
   function insertFeedPlaceholder(targets) {
-    if (!targets.length) {
+    if (shieldMatch?.type === "entry-points" || !targets.length) {
       document.getElementById("anti-scroll-feed-placeholder")?.remove();
       return;
     }
@@ -767,7 +776,7 @@
   }
 
   function applyFeedSurfaceShield() {
-    if (!shieldMatch?.active || shieldMatch.type !== "feed" || !isTopFrame()) {
+    if (!shieldMatch?.active || !isSurfaceShield(shieldMatch) || !isTopFrame()) {
       hideFeedSurfaceShield();
       return;
     }
@@ -775,6 +784,7 @@
     ensureStyle();
     hideFullPageShield();
     const focused = document.activeElement;
+    document.documentElement.dataset.antiScrollEntryPoints = String(shieldMatch.type === "entry-points");
     document.documentElement.dataset.antiScrollFeedSurface = "true";
     document.documentElement.dataset.antiScrollFeedPreset =
       shieldMatch.presetId || "";
@@ -797,6 +807,7 @@
 
   function hideFeedSurfaceShield() {
     if (document.documentElement) {
+      delete document.documentElement.dataset.antiScrollEntryPoints;
       delete document.documentElement.dataset.antiScrollFeedSurface;
       delete document.documentElement.dataset.antiScrollFeedPreset;
     }
@@ -844,7 +855,7 @@
 
     const mediaElements = new Set();
 
-    if (shieldMatch.type === "feed") {
+    if (isSurfaceShield(shieldMatch)) {
       for (const target of Array.from(surfaceTargets)) {
         if (!(target instanceof Element) || !target.isConnected) {
           continue;
@@ -877,7 +888,7 @@
   function showFullPageShield() {
     if (
       !shieldMatch?.active ||
-      shieldMatch.type === "feed" ||
+      isSurfaceShield(shieldMatch) ||
       !document.documentElement
     ) {
       return;
@@ -938,7 +949,7 @@
 
     shieldMatch = match;
 
-    if (shieldMatch.type === "feed") {
+    if (isSurfaceShield(shieldMatch)) {
       applyFeedSurfaceShield();
       return;
     }
@@ -1024,7 +1035,7 @@
     activeMatch = match.active ? match : null;
 
     if (activeMatch) {
-      if (activeMatch.type === "feed") {
+      if (isSurfaceShield(activeMatch)) {
         releaseLockOnly();
       } else {
         enableLock();
