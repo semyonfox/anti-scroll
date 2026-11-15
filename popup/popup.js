@@ -295,6 +295,12 @@
       return;
     }
 
+    if (match?.reason === "outside-schedule") {
+      elements.statusPill.textContent = "Off";
+      elements.currentStatus.textContent = "Outside focus windows";
+      return;
+    }
+
     if (match?.reason === "timer-ended") {
       elements.statusPill.textContent = "Ended";
       elements.currentStatus.textContent = "Timer ended";
@@ -405,6 +411,11 @@
   function renderTimer() {
     renderSchedules();
     const activeUntil = state.settings.activeUntil;
+    if (state.settings.scheduleOnly) {
+      elements.timerStatus.textContent = "Schedule only. Start a timer to switch to timed blocking.";
+      elements.clearTimer.disabled = !activeUntil;
+      return;
+    }
     if (activeUntil && activeUntil > Date.now()) {
       elements.timerStatus.textContent = `Running until ${formatTime(activeUntil)}`;
       elements.clearTimer.disabled = false;
@@ -553,6 +564,7 @@
   }
 
   function renderOptions() {
+    elements.scheduleOnly.checked = state.settings.scheduleOnly;
     elements.strictFeeds.checked = state.settings.strictFeeds;
     elements.allowEditableFields.checked = state.settings.allowEditableFields;
     elements.allowMessagingPages.checked = state.settings.allowMessagingPages;
@@ -567,7 +579,7 @@
     elements.retryLoad.hidden = !state.loadError;
     elements.retryLoad.disabled = state.loading;
     const unavailable = state.loading || state.loadError || state.saving;
-    for (const id of ["modeDisabled", "modeSelected", "modeAll", "siteSearch", "durationMinutes", "startTimer", "selectAll", "clearSelected", "strictFeeds", "allowEditableFields", "allowMessagingPages", "resetStats"]) {
+    for (const id of ["modeDisabled", "modeSelected", "modeAll", "scheduleOnly", "siteSearch", "durationMinutes", "startTimer", "selectAll", "clearSelected", "strictFeeds", "allowEditableFields", "allowMessagingPages", "resetStats"]) {
       elements[id].disabled = unavailable;
     }
     for (const control of elements.siteList.querySelectorAll?.("input, button, select") || []) control.disabled = unavailable;
@@ -712,6 +724,7 @@
         state.settings.mode === config.MODES.DISABLED
           ? config.MODES.SELECTED
           : state.settings.mode,
+      scheduleOnly: false,
       activeUntil: Date.now() + minutes * 60 * 1000,
     });
   }
@@ -979,6 +992,7 @@
       "modeDisabled",
       "modeSelected",
       "modeAll",
+      "scheduleOnly",
       "durationMinutes",
       "startTimer",
       "clearTimer",
@@ -1024,6 +1038,7 @@
       button.addEventListener("click", setMode);
     }
 
+    elements.scheduleOnly.addEventListener("change", toggleOption);
     elements.startTimer.addEventListener("click", startTimer);
     elements.retryLoad.addEventListener("click", loadInitialState);
     elements.anonymousTelemetryEnabled.addEventListener("change", toggleOption);

@@ -299,6 +299,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     const scheduled = config.getScheduleState(settings).active;
     if (
       settings.mode === config.MODES.DISABLED ||
+      (settings.scheduleOnly && !scheduled) ||
       (settings.activeUntil && settings.activeUntil <= Date.now() && !scheduled)
     ) {
       return {
@@ -370,7 +371,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
     if (schedule.nextChange) times.push(schedule.nextChange);
     if (nextSettings.activeUntil > now) {
       times.push(Math.min(nextSettings.activeUntil, now + 60 * 1000));
-    } else if (nextSettings.activeUntil && !nextSettings.schedules.length) {
+    } else if (nextSettings.activeUntil && !nextSettings.schedules.length && !nextSettings.scheduleOnly) {
       await expireElapsedTimer();
       return;
     }
@@ -386,7 +387,7 @@ if (!globalThis.AntiScrollConfig && typeof importScripts === "function") {
         return current;
       }
 
-      if (current.schedules.length) return current;
+      if (current.schedules.length || current.scheduleOnly) return current;
 
       const expiredSettings = {
         ...current,

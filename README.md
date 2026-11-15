@@ -103,10 +103,13 @@ Windows sync with your settings and use each browser's local time zone.
 
 An explicit manual disable or site pause always wins. During a window, shields
 are active for the configured sites even if a one-off timer has ended. Outside
-windows normal settings apply. With no timer, Selected sites and All sites stay
-on between windows too. To use windows alone, set a short timer and let it end.
+windows normal settings apply unless Schedule only is checked. Schedule only
+keeps shields off outside windows, including when no windows are configured.
+It works with Selected sites and All sites. Starting a timer switches Schedule
+only off so timed blocking can run outside windows.
 An elapsed timer is retained while windows exist so the next window can resume
-blocking. Removing all windows restores normal timer expiry.
+blocking. Removing all windows restores normal timer expiry unless Schedule
+only is checked.
 
 The badge shows SCH during a window and the popup shows whether a window is
 active, overridden by Off, or when the next boundary occurs. Overnight windows

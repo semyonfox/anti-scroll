@@ -21,6 +21,10 @@
         <button id="modeSelected" type="button" data-mode="selected" aria-pressed="false">Selected sites</button>
         <button id="modeAll" type="button" data-mode="all" aria-pressed="false">All sites</button>
       </section>
+      <section class="card options">
+        <label><input id="scheduleOnly" type="checkbox" aria-describedby="scheduleOnlyHint">Schedule only</label>
+        <p id="scheduleOnlyHint" class="hint">Shields stay off outside focus windows. Off and site pauses still take priority.</p>
+      </section>
       <p id="modeHint" class="hint">Presets hide feeds; custom domains block the whole site.</p>
       <div class="feedback">
         <p id="actionMessage" role="alert" aria-atomic="true"></p>
@@ -51,7 +55,7 @@
       <section class="card schedules" aria-labelledby="schedulesLabel">
         <h2 id="schedulesLabel">Focus windows</h2>
         <p id="scheduleStatus" role="status"></p>
-        <p class="hint">Local time. Outside windows your normal settings apply. Off and site pauses always win.</p>
+        <p class="hint">Local time. Check Schedule only to keep shields off outside windows. Off and site pauses always win.</p>
         <fieldset id="scheduleDays">
           <legend>Repeat on</legend>
           <label><input type="checkbox" value="1" checked>Mon</label>

@@ -867,6 +867,14 @@ function setSettings(settings) {
   setSettings({ ...scheduledSettings, mode: config.MODES.DISABLED });
   await waitFor(() => badgeTitles.at(-1) === "Anti Scroll: off", "manual off overriding the schedule");
 
+  badgeTitles.length = 0;
+  setSettings({ ...scheduledSettings, scheduleOnly: true, schedules: [] });
+  await waitFor(() => badgeTitles.at(-1) === "Anti Scroll: off", "schedule only outside a window");
+  if (storage.sync[config.SETTINGS_KEY].mode !== config.MODES.SELECTED) throw new Error("schedule only must survive timer expiry without windows");
+  badgeTitles.length = 0;
+  setSettings({ ...scheduledSettings, scheduleOnly: true, activeUntil: null });
+  await waitFor(() => badgeTitles.at(-1) === "Anti Scroll: focus window active", "schedule only without a timer");
+
   sentTabMessages.length = 0;
   historyStateListener({ frameId: 0, tabId: 7, url: "https://x.com/explore" });
   historyStateListener({ frameId: 3, tabId: 7, url: "https://x.com/subframe" });
