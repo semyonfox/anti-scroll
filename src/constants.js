@@ -98,6 +98,7 @@
     presets: DEFAULT_PRESET_STATE,
     siteModes: {},
     schedules: [],
+    scheduleOnly: false,
     customDomains: [],
     pausedUntilByHost: {},
   };
@@ -437,6 +438,7 @@
       presets: presetState,
       siteModes,
       schedules: sanitizeSchedules(incoming.schedules),
+      scheduleOnly: incoming.scheduleOnly === true,
       customDomains: uniqueDomains(
         Array.isArray(incoming.customDomains) ? incoming.customDomains : [],
       ),
@@ -746,7 +748,12 @@
       return { active: false, reason: "paused", host, pausedUntil };
     }
 
-    if (settings.activeUntil && settings.activeUntil <= Date.now() && !getScheduleState(settings).active) {
+    const scheduled = getScheduleState(settings).active;
+    if (settings.scheduleOnly && !scheduled) {
+      return { active: false, reason: "outside-schedule", host };
+    }
+
+    if (settings.activeUntil && settings.activeUntil <= Date.now() && !scheduled) {
       return {
         active: false,
         reason: "timer-ended",

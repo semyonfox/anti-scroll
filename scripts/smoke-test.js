@@ -631,6 +631,9 @@ assert.deepEqual(Object.keys(config.sanitizeSettings({}).siteModes), []);
 assert.equal(config.sanitizeSettings({ siteModes: { youtube: "invalid" } }).siteModes.youtube, undefined);
 assert.equal(config.matchShield("https://instagram.com/direct/", { siteModes: { instagram: "full-page" } }).active, false);
 
+assert.equal(config.sanitizeSettings({}).scheduleOnly, false);
+assert.equal(config.sanitizeSettings({ scheduleOnly: "true" }).scheduleOnly, false);
+assert.equal(config.sanitizeSettings({ scheduleOnly: true }).scheduleOnly, true);
 const weekly = { schedules: [{ days: [1], start: "09:00", end: "17:00" }] };
 const localTime = (day, time) => new Date(`2026-11-${day}T${time}:00`).getTime();
 assert.equal(config.getScheduleState(weekly, localTime("16", "08:59")).active, false);
@@ -651,6 +654,10 @@ assert.equal(config.sanitizeSchedules([{ days: [1, 1, 9], start: "09:00", end: "
 const realNow = Date.now;
 try {
   Date.now = () => localTime("16", "10:00");
+  const scheduleOnly = { ...weekly, scheduleOnly: true };
+  assert.equal(config.matchShield("https://youtube.com/", scheduleOnly).active, true);
+  assert.equal(config.matchShield("https://youtube.com/", { ...scheduleOnly, mode: "disabled" }).reason, "disabled");
+  assert.equal(config.matchShield("https://youtube.com/", { ...scheduleOnly, pausedUntilByHost: { "youtube.com": localTime("16", "11:00") } }).reason, "paused");
   const timed = { ...weekly, activeUntil: localTime("16", "08:00") };
   assert.equal(config.matchShield("https://youtube.com/", timed).active, true);
   assert.equal(config.matchShield("https://youtube.com/", { ...timed, mode: "disabled" }).reason, "disabled");
@@ -658,6 +665,14 @@ try {
   Date.now = () => localTime("16", "18:00");
   assert.equal(config.matchShield("https://youtube.com/", timed).reason, "timer-ended");
   assert.equal(config.matchShield("https://youtube.com/", weekly).active, true);
+  for (const mode of ["selected", "all"]) {
+    for (const activeUntil of [null, localTime("16", "19:00"), localTime("16", "08:00")]) {
+      assert.equal(config.matchShield("https://youtube.com/", { ...scheduleOnly, mode, activeUntil }).reason, "outside-schedule");
+    }
+  }
+  assert.equal(config.matchShield("https://youtube.com/", { scheduleOnly: true }).active, false);
+  Date.now = () => localTime("23", "09:00");
+  assert.equal(config.matchShield("https://youtube.com/", scheduleOnly).active, true);
 } finally {
   Date.now = realNow;
 }

@@ -26,7 +26,7 @@ async function main() {
     await page.goto("https://www.youtube.com/");
     await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface === "true");
     assert.equal(await page.locator("ytd-rich-grid-renderer").isVisible(), false);
-    assert.equal(await page.locator("#anti-scroll-feed-placeholder").isVisible(), true);
+    await page.locator("#anti-scroll-feed-placeholder").waitFor({ state: "visible" });
     await page.evaluate(() => history.pushState({}, "", "/watch?v=fixture"));
     await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
     assert.equal(await page.locator("ytd-rich-grid-renderer").isVisible(), true);
@@ -50,6 +50,13 @@ async function main() {
     await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
     assert.equal(await page.locator("#related").isVisible(), true);
     await popup.locator("#mode-youtube").selectOption("");
+    await popup.locator("#scheduleOnly").check();
+    await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.scheduleOnly === true);
+    await page.goto("https://www.youtube.com/");
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
+    assert.equal(await page.locator("ytd-rich-grid-renderer").isVisible(), true);
+    await popup.waitForFunction(() => document.querySelector("#timerStatus").textContent.startsWith("Schedule only."));
+    assert.equal(await worker.evaluate(() => chrome.action.getBadgeText({})), "OFF");
     for (const input of await popup.locator("#scheduleDays input").all()) await input.check();
     await popup.locator("#scheduleStart").fill("00:00");
     await popup.locator("#scheduleEnd").fill("12:00");
@@ -59,14 +66,21 @@ async function main() {
     await popup.locator("#scheduleEnd").fill("00:00");
     await popup.locator("#addSchedule").click();
     await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.schedules.length === 2);
-    await worker.evaluate(async () => {
-      const { antiScrollSettings: settings } = await chrome.storage.sync.get("antiScrollSettings");
-      await chrome.storage.sync.set({ antiScrollSettings: { ...settings, activeUntil: Date.now() - 1000 } });
-    });
+    assert.equal(await worker.evaluate(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.activeUntil), null);
     await page.goto("https://www.youtube.com/");
     await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface === "true");
     await popup.waitForFunction(() => document.querySelector("#scheduleStatus").textContent === "Focus window active");
     assert.equal(await worker.evaluate(() => chrome.action.getBadgeText({})), "SCH");
+    await worker.evaluate(async () => {
+      const { antiScrollSettings: settings } = await chrome.storage.sync.get("antiScrollSettings");
+      await chrome.storage.sync.set({ antiScrollSettings: { ...settings, pausedUntilByHost: { "youtube.com": Date.now() + 60000 } } });
+    });
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
+    await worker.evaluate(async () => {
+      const { antiScrollSettings: settings } = await chrome.storage.sync.get("antiScrollSettings");
+      await chrome.storage.sync.set({ antiScrollSettings: { ...settings, pausedUntilByHost: {} } });
+    });
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface === "true");
     await popup.locator("#modeDisabled").click();
     await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
     await popup.waitForFunction(() => document.querySelector("#scheduleStatus").textContent === "Off overrides focus windows");
@@ -80,9 +94,13 @@ async function main() {
     await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.schedules.length === 1);
     await popup.locator("[data-remove-schedule='0']").click();
     await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.schedules.length === 0);
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface !== "true");
+    assert.equal(await page.locator("ytd-rich-grid-renderer").isVisible(), true);
     await popup.locator("#durationMinutes").fill("5");
     await popup.locator("#startTimer").click();
     await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.activeUntil > Date.now());
+    assert.equal(await popup.locator("#scheduleOnly").isChecked(), false);
+    await page.waitForFunction(() => document.documentElement.dataset.antiScrollFeedSurface === "true");
     await popup.locator("#clearTimer").click();
     await popup.waitForFunction(async () => (await chrome.storage.sync.get("antiScrollSettings")).antiScrollSettings.activeUntil === null);
     await worker.evaluate(async () => {
